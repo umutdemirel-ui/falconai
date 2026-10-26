@@ -25,7 +25,7 @@ export const PROVIDER_SPECS: Record<ProviderId, ProviderSpec> = {
     kind: 'gemini',
     baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
     defaultModel: 'gemini-3.8-flash',
-    fallbackModels: ['gemini-3.5-flash-lite'],
+    fallbackModels: ['gemini-3.6-flash', 'gemini-3.5-flash-lite'],
     keyHint: 'AIza…',
     docsUrl: 'https://aistudio.google.com/apikey',
     supportsVoice: true,

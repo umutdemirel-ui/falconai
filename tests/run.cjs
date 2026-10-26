@@ -69,6 +69,19 @@ async function main() {
 
   fs.rmSync(USER_DATA, { recursive: true, force: true });
   fs.mkdirSync(FAKE_HOME, { recursive: true });
+  // Eski sürümden kalan ayar dosyası: emekli Gemini modelleri içeriyor.
+  fs.mkdirSync(path.join(USER_DATA, 'falcon-data'), { recursive: true });
+  fs.writeFileSync(
+    path.join(USER_DATA, 'falcon-data', 'config.json'),
+    JSON.stringify({
+      models: {
+        brain: 'gemini-2.5-flash',
+        vision: 'gemini-2.0-flash',
+        search: 'gemini-1.5-flash',
+        tts: 'gemini-2.5-flash-preview-tts',
+      },
+    }),
+  );
 
   const electron = require(STUB);
   const readyPromise = new Promise((resolve) => electron.app.once('ready', resolve));
@@ -89,6 +102,18 @@ async function main() {
   /* ----------------------------- Ayarlar ----------------------------- */
   const config = await invoke('config:get');
   check('Varsayılan ayarlar yüklendi', config?.permissions?.mode === 'full');
+  check(
+    'Emekli model adları açılışta onarıldı',
+    config.models.brain === 'gemini-3.8-flash' &&
+      config.models.vision === 'gemini-3.8-flash' &&
+      config.models.tts === 'gemini-3.8-flash-tts' &&
+      config.models.search === 'gemini-3.8-flash',
+    `${config.models.brain} / ${config.models.tts} / ${config.models.search}`,
+  );
+  check(
+    'Onarılan ayar dosyaya yazıldı',
+    !fs.readFileSync(path.join(USER_DATA, 'falcon-data', 'config.json'), 'utf8').includes('gemini-2.'),
+  );
   check('Başlangıçta API anahtarı yok', config.hasApiKey === false);
   check('Varsayılan modeller Gemini', /^gemini-/.test(config.models.brain) && /tts/.test(config.models.tts));
 
@@ -239,6 +264,30 @@ async function main() {
     const forbidden = await appHandler(new Request('app://falcon/%2e%2e%2f%2e%2e%2fetc%2fpasswd'));
     check('app:// dizin dışına çıkış 403', forbidden.status === 403, String(forbidden.status));
   }
+
+
+  /* ------------------ Emekliye ayrılmış model dayanıklılığı ------------ */
+  // Kullanıcıların eski ayar dosyalarında gemini-2.x kalabiliyor; API artık 404 döner.
+  const beforeLegacy = requests.length;
+  const currentCfg = await invoke('config:get');
+  await invoke('config:update', {
+    models: { ...currentCfg.models, brain: 'gemini-2.5-flash', search: 'gemini-2.0-flash', stt: 'gemini-1.5-flash' },
+  });
+  const legacyChat = await invoke('chat:send', { text: 'Emekli model ayarıyla da çalışmalı' });
+  check('Emekli model ayarı sohbeti bozmuyor', (legacyChat.assistantMessage.text ?? '').length > 5, legacyChat.assistantMessage.text);
+  const legacyHits = requests
+    .slice(beforeLegacy)
+    .filter((r) => /generateContent/.test(r.url))
+    .map((r) => decodeURIComponent(r.url))
+    .filter((u) => /gemini-(1\.|2\.)/.test(u));
+  check('Emekli model hiç denenmedi', legacyHits.length === 0, legacyHits.join(' · '));
+  const legacyAgenda = await invoke('data:agenda-run', false);
+  check('Gündem emekli model ayarıyla da çalışıyor', legacyAgenda.items.length >= 1, legacyAgenda.headline);
+  const legacyStt = await invoke('voice:transcribe', wav.toString('base64'), 'audio/wav', 'test');
+  check('Ses yazıya dökme emekli model ayarıyla da çalışıyor', legacyStt.text.length > 3, legacyStt.text);
+  await invoke('config:update', {
+    models: { ...currentCfg.models, brain: 'gemini-3.8-flash', search: 'gemini-3.8-flash', stt: 'gemini-3.8-flash' },
+  });
 
   /* ------------------------------ Sistem ----------------------------- */
   const info = await invoke('system:info');

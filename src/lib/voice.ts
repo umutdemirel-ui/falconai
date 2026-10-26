@@ -339,7 +339,8 @@ class VoiceEngine {
     const cfg = useStore.getState().config;
     const threshold = cfg?.voice.vadThreshold ?? 0.035;
     const silenceMs = cfg?.voice.vadSilenceMs ?? 1100;
-    const maxMs = 45_000;
+    // Uzun kayıt = büyük yükleme = STT zaman aşımı riski. 30 sn konuşma komutları için fazlasıyla yeterli.
+    const maxMs = 30_000;
     let lastLoud = Date.now();
     let hasSpeech = false;
     const started = Date.now();

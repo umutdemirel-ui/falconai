@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { getApiKey, getConfig } from './config';
 import { log } from './logger';
+import { isRetiredModel } from './model-utils';
 import { Lru } from './store';
 import type { ModelInfo } from '../../shared/types';
 
@@ -263,22 +264,33 @@ export function pickBestModel(purpose: ModelPurpose, models: ModelInfo[]): strin
   return sorted[0]?.name ?? null;
 }
 
+/** Emekli model kontrolü (bkz. model-utils). */
+export { RETIRED_MODEL } from './model-utils';
+
 const FALLBACKS: Record<ModelPurpose, string[]> = {
-  brain: ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3-flash', 'gemini-2.5-flash', 'gemini-2.0-flash'],
-  fast: ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-2.5-flash-lite', 'gemini-2.5-flash'],
-  vision: ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-2.5-flash', 'gemini-2.0-flash'],
-  tts: ['gemini-3.8-flash-tts', 'gemini-3.8-flash-lite-tts', 'gemini-2.5-flash-preview-tts', 'gemini-2.5-pro-preview-tts'],
-  stt: ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-2.5-flash', 'gemini-2.0-flash'],
-  search: ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-2.5-flash', 'gemini-2.0-flash'],
+  brain: ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-4-argon', 'gemini-3.5-flash-lite'],
+  fast: ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-3.8-flash'],
+  vision: ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite'],
+  tts: ['gemini-3.8-flash-tts', 'gemini-3.8-flash-lite-tts'],
+  stt: ['gemini-3.8-flash', 'gemini-3.6-flash'],
+  search: ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite'],
 };
 
 /** Yapılandırılmış model + yedek zinciri */
 export function modelChain(purpose: ModelPurpose, configured: string): string[] {
   const cfg = getConfig();
-  const chain = [configured, ...FALLBACKS[purpose]];
+  const safe = isRetiredModel(configured) ? '' : configured;
+  const chain = [safe, ...FALLBACKS[purpose]];
   const unique = [...new Set(chain.filter(Boolean))];
   if (!cfg.models.autoFallback) return unique.slice(0, 1);
   return unique;
+}
+
+/** Kullanıcıya gösterilecek en anlamlı hatayı seçer (404, gerçek nedeni gizlemesin). */
+function betterError(current: GeminiError | null, next: GeminiError): GeminiError {
+  if (!current) return next;
+  if (current.modelMissing && !next.modelMissing) return next;
+  return current;
 }
 
 /* ------------------------------------------------------------------ */
@@ -405,6 +417,7 @@ export async function generate(opts: GenerateOptions): Promise<GenerateResult> {
   const cfg = getConfig();
   const chain = [...new Set([opts.model, ...(opts.fallbacks ?? modelChain(opts.purpose ?? 'brain', opts.model))])];
   let lastError: GeminiError | null = null;
+  let bestError: GeminiError | null = null;
 
   for (const model of chain) {
     try {
@@ -449,18 +462,20 @@ export async function generate(opts: GenerateOptions): Promise<GenerateResult> {
     } catch (err) {
       const ge = err instanceof GeminiError ? err : new GeminiError(String(err), 0, 'NETWORK', model);
       lastError = ge;
+      bestError = betterError(bestError, ge);
       if (ge.modelMissing && cfg.models.autoFallback) {
         log.warn(`model bulunamadı, yedek deneniyor: ${model}`);
         continue;
       }
       if (ge.retryable) {
+        log.warn(`model yanıt vermedi (${ge.code}), yedek deneniyor: ${model}`);
         await sleep(900);
         continue;
       }
       throw ge;
     }
   }
-  throw lastError ?? new GeminiError('Model yanıt vermedi', 0, 'NO_MODEL');
+  throw bestError ?? lastError ?? new GeminiError('Model yanıt vermedi', 0, 'NO_MODEL');
 }
 
 /** Akışlı üretim — metin parçalarını olay olarak döndürür */
@@ -468,6 +483,7 @@ export async function* streamGenerate(opts: GenerateOptions): AsyncGenerator<Str
   const cfg = getConfig();
   const chain = [...new Set([opts.model, ...(opts.fallbacks ?? modelChain(opts.purpose ?? 'brain', opts.model))])];
   let lastError: GeminiError | null = null;
+  let bestError: GeminiError | null = null;
 
   let emittedAny = false;
   for (const model of chain) {
@@ -492,20 +508,20 @@ export async function* streamGenerate(opts: GenerateOptions): AsyncGenerator<Str
     } catch (err) {
       const ge = err instanceof GeminiError ? err : new GeminiError(String(err), 0, 'NETWORK', model);
       lastError = ge;
+      bestError = betterError(bestError, ge);
       // Metin akmaya başladıysa yedek modele geçmek tekrar/çift yanıt üretir
       if (emittedAny) throw ge;
-      if (ge.retryable && cfg.models.autoFallback) {
-        await sleep(800);
-        continue;
+      if (ge.modelMissing) {
+        log.warn(`model bulunamadı, yedek deneniyor: ${model}`);
       }
-      if (ge.modelMissing && cfg.models.autoFallback) {
-        log.warn(`akış: model bulunamadı, yedek deneniyor: ${model}`);
+      if ((ge.modelMissing || ge.retryable) && cfg.models.autoFallback) {
+        await sleep(ge.retryable ? 800 : 0);
         continue;
       }
       throw ge;
     }
   }
-  throw lastError ?? new GeminiError('Model yanıt vermedi', 0, 'NO_MODEL');
+  throw bestError ?? lastError ?? new GeminiError('Model yanıt vermedi', 0, 'NO_MODEL');
 }
 
 async function* parseSse(body: ReadableStream<Uint8Array>, model: string): AsyncGenerator<StreamChunk> {
@@ -784,21 +800,43 @@ export async function transcribe(
     .filter(Boolean)
     .join('\n');
 
-  const res = await generate({
-    model: opts.model,
-    purpose: 'stt',
-    temperature: 0,
-    maxOutputTokens: 2048,
-    signal: opts.signal,
-    timeoutMs: 60_000,
-    contents: [
-      {
-        role: 'user',
-        parts: [{ text: prompt }, { inlineData: { mimeType: mime || 'audio/wav', data: audioBase64 } }],
-      },
-    ],
-  });
-  return res.text.trim().replace(/^["'“”]|["'“”]$/g, '');
+  const cleanup = (text: string) => text.trim().replace(/^["'“”]|["'“”]$/g, '');
+  const request = (timeoutMs: number) =>
+    generate({
+      model: opts.model,
+      purpose: 'stt',
+      temperature: 0,
+      maxOutputTokens: 2048,
+      signal: opts.signal,
+      timeoutMs,
+      contents: [
+        {
+          role: 'user',
+          parts: [{ text: prompt }, { inlineData: { mimeType: mime || 'audio/wav', data: audioBase64 } }],
+        },
+      ],
+    });
+
+  let lastError: unknown = null;
+  // Uzun kayıtlarda yükleme yavaş olabilir: bir kez daha dene, sonra anlaşılır hata ver.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await request(attempt === 0 ? 120_000 : 90_000);
+      return cleanup(res.text);
+    } catch (err) {
+      lastError = err;
+      const detail = err instanceof Error ? err.message : String(err);
+      const transient = /timeout|timed out|abort|network|fetch failed|ECONNRESET|ETIMEDOUT|socket/i.test(detail);
+      if (!transient || attempt === 1) break;
+      log.warn('ses yazıya dökülemedi, tekrar deneniyor', detail);
+      await sleep(700);
+    }
+  }
+  const detail = lastError instanceof Error ? lastError.message : String(lastError);
+  const friendly = /timeout|timed out|abort|network|fetch failed|ECONNRESET|ETIMEDOUT|socket/i.test(detail)
+    ? 'Ses yazıya dökülemedi: bağlantı zaman aşımına uğradı. İnternetini kontrol et, daha kısa konuş veya Ayarlar → Ses ve Konuşma bölümünde ses sağlayıcısını OpenAI (Whisper) yap.'
+    : `Ses yazıya dökülemedi: ${detail}`;
+  throw new GeminiError(friendly, 0, 'STT_FAILED', opts.model, false, false, friendly);
 }
 
 /* ------------------------------------------------------------------ */
