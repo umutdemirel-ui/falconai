@@ -209,6 +209,12 @@ export function VoiceView() {
                         ? 'OpenAI anahtarı gerekir; Türkçe konuşmada Whisper kullanılır.'
                         : 'Gemini anahtarı gerekir; ses, görsel ve gündem için tek anahtar yeterli.'}
                     </p>
+                    {!config.providerStates?.some((p) => p.supportsVoice && p.hasKey) ? (
+                      <p className="mt-1 rounded-md border border-amber-400/25 bg-amber-500/[0.07] px-2 py-1 text-[10px] leading-relaxed text-amber-200/80">
+                        Ses için Gemini veya OpenAI anahtarı gerekir; Ollama yalnızca sohbet/araç içindir. Anahtar yoksa Falcon sistem sesini
+                        kullanır ama mikrofonla konuşmayı yazıya dökemez.
+                      </p>
+                    ) : null}
                   </div>
                   <div>
                     <p className="label mb-1.5">Gemini sesi</p>

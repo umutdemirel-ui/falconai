@@ -115,7 +115,7 @@ export function SettingsView() {
               <StatusDot tone={config.hasApiKey ? 'green' : 'red'} /> {config.hasApiKey ? 'Sağlayıcı bağlı' : 'Anahtar gerekli'}
             </p>
             <p className="mt-1 text-[10px] leading-relaxed text-white/20">
-              Gemini, OpenAI, Anthropic, NVIDIA veya Abacus anahtarlarından biri yeterli.
+              Gemini, OpenAI, Anthropic, NVIDIA veya Abacus anahtarlarından biri yeterli; anahtarsız yerel çalışma için Ollama.
             </p>
           </div>
         </div>
@@ -182,8 +182,8 @@ export function SettingsView() {
                 <div className="min-w-0 flex-1">
                   <h3 className="text-[13px] font-semibold text-white/90">Yapay zekâ sağlayıcıları</h3>
                   <p className="text-[10.5px] leading-relaxed text-white/35">
-                    Bir veya birden fazla anahtar ekleyebilirsin. Falcon anahtarı olan sağlayıcıyla çalışır; Gemini ses, görsel analiz ve
-                    gündem için önerilir.
+                    Bir veya birden fazla anahtar ekleyebilirsin. <span className="text-white/55">Ollama</span> anahtar
+                    istemez, bilgisayarında çalışır. Gemini ses, görsel analiz ve gündem için önerilir.
                   </p>
                 </div>
                 <span className="shrink-0 text-[10px] text-white/30">

@@ -89,7 +89,9 @@ export function RightRail() {
           <div className="min-w-0 flex-1">
             <p className="truncate text-[13px] font-semibold text-white/90">{activeProvider?.label ?? 'Yapay zekâ sağlayıcısı'}</p>
             <p className="truncate text-[10.5px] text-white/35">
-              Bulut API · {activeProvider?.hasKey ? 'anahtar kayıtlı' : 'anahtar yok'}
+              {activeProvider?.local
+                ? 'Yerel · internet gerekmez'
+                : `Bulut API · ${activeProvider?.hasKey ? 'anahtar kayıtlı' : 'anahtar yok'}`}
             </p>
           </div>
           <StatusDot tone={config?.hasApiKey ? 'green' : 'red'} pulse={Boolean(config?.hasApiKey)} />
@@ -131,7 +133,7 @@ export function RightRail() {
             {testing ? 'Test ediliyor…' : 'Bağlantıyı test et'}
           </Button>
           <span className="flex items-center gap-1 text-[10.5px] text-white/30">
-            <KeyRound size={11} /> {config?.hasApiKey ? 'anahtar kayıtlı' : 'anahtar yok'}
+            <KeyRound size={11} /> {activeProvider?.local ? 'anahtar gerekmez' : config?.hasApiKey ? 'anahtar kayıtlı' : 'anahtar yok'}
           </span>
         </div>
       </Panel>

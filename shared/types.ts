@@ -6,7 +6,7 @@
 export type PermissionMode = 'manual' | 'smart' | 'full';
 
 /** Yapay zekâ sağlayıcıları. Gemini zorunlu değildir; herhangi biri yeterlidir. */
-export type ProviderId = 'gemini' | 'openai' | 'anthropic' | 'nvidia' | 'abacus';
+export type ProviderId = 'gemini' | 'openai' | 'anthropic' | 'nvidia' | 'abacus' | 'ollama';
 
 export type ProviderKind = 'gemini' | 'openai' | 'anthropic';
 
@@ -38,7 +38,12 @@ export interface ProviderState {
   id: ProviderId;
   label: string;
   kind: ProviderKind;
+  /** Kullanılabilir mi? (anahtar var veya yerel sunucu anahtar istemez) */
   hasKey: boolean;
+  /** Anahtar zorunlu değil (Ollama gibi yerel sağlayıcı) */
+  keyRequired: boolean;
+  /** Bilgisayarda çalışan yerel sunucu */
+  local: boolean;
   masked: string;
   model: string;
   defaultModel: string;
@@ -506,6 +511,7 @@ export const DEFAULT_CONFIG: Config = {
       anthropic: { keyEncrypted: null, model: '', baseUrl: '' },
       nvidia: { keyEncrypted: null, model: '', baseUrl: '' },
       abacus: { keyEncrypted: null, model: '', baseUrl: '' },
+      ollama: { keyEncrypted: null, model: '', baseUrl: '' },
     },
   },
   createdAt: 0,

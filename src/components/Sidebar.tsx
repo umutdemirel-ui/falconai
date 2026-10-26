@@ -124,7 +124,11 @@ export function Sidebar() {
         </div>
         <div className="mt-2.5 flex items-center justify-between border-t border-white/[0.06] pt-2 text-[10px] text-white/25">
           <span>Falcon v{version || '1.0.0'}</span>
-          <span>Google Gemini</span>
+          <span>
+            {config?.providerStates?.find((p) => p.id === config.ai.primary)?.local
+              ? 'Ollama · yerel'
+              : config?.providerStates?.find((p) => p.id === config.ai.primary)?.label ?? 'Google Gemini'}
+          </span>
         </div>
       </div>
     </aside>

@@ -90,7 +90,7 @@ import { syncModels } from './services/models';
 import { getTool } from './services/tools';
 import { startScheduler, stopScheduler, runAgendaNow } from './services/scheduler';
 import { listModels, testConnection } from './core/gemini';
-import { listProviderModels, testProvider } from './core/llm';
+import { ensureLocalModel, listProviderModels, testProvider } from './core/llm';
 import type { Attachment, Config, ProviderId } from '../shared/types';
 
 /* ------------------------------------------------------------------ */
@@ -372,6 +372,15 @@ function applyLoginItem(): void {
 }
 
 async function primeModels(): Promise<void> {
+  if (getConfig().ai.primary === 'ollama') {
+    try {
+      const model = await ensureLocalModel();
+      log.info(`yerel model hazır: ${model}`);
+      emitConfig(publicConfig());
+    } catch (err) {
+      log.warn('Ollama modeli seçilemedi', err instanceof Error ? err.message : err);
+    }
+  }
   if (!providerKey('gemini')) return;
   try {
     const result = await syncModels(false);
@@ -394,6 +403,11 @@ function registerIpc(): void {
   ipcMain.handle('config:update', (_e, patch: Partial<Config>) => {
     const before = getConfig();
     const cfg = updateConfig(patch);
+    if (cfg.ai.primary === 'ollama' && before.ai.primary !== 'ollama') {
+      void ensureLocalModel()
+        .then(() => emitConfig(publicConfig()))
+        .catch((err) => log.warn('Ollama modeli seçilemedi', err instanceof Error ? err.message : err));
+    }
     if (patch.general) {
       registerShortcuts();
       applyLoginItem();

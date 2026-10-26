@@ -5,6 +5,7 @@
  *   https://api.anthropic.com/v1/…       → /anthropic/v1/…
  *   https://integrate.api.nvidia.com/v1/…→ /nvidia/v1/…
  *   https://routellm.abacus.ai/v1/…      → /abacus/v1/…
+ *   http://127.0.0.1:11434/…             → /ollama/…   (yerel Ollama)
  *   https://generativelanguage.googleapis.com/… (öneksiz)
  */
 const http = require('node:http');
@@ -83,7 +84,7 @@ const server = http.createServer((req, res) => {
     }
     let vendor = 'gemini';
     let route = req.url;
-    const prefixed = req.url.match(/^\/(openai|anthropic|nvidia|abacus)(\/.*)$/);
+    const prefixed = req.url.match(/^\/(openai|anthropic|nvidia|abacus|ollama)(\/.*)$/);
     if (prefixed) {
       vendor = prefixed[1];
       route = prefixed[2].replace(/^\/v1/, '');
@@ -121,6 +122,13 @@ const server = http.createServer((req, res) => {
       const contents = json.contents || [];
       const flattened = JSON.stringify(contents);
       const hasFunctionResponse = flattened.includes('functionResponse');
+
+      // Test kancası: "#SIMULATE_429#" → kota hatası (sağlayıcı yedeğini sınamak için)
+      if (flattened.includes('#SIMULATE_429#')) {
+        res.writeHead(429, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ error: { code: 429, message: 'Resource has been exhausted (e.g. check quota).', status: 'RESOURCE_EXHAUSTED' } }));
+        return;
+      }
       res.writeHead(200, { 'content-type': 'text/event-stream' });
 
       // Test kancası: "#TOOLCALL:<base64 json>#" → istenen aracı çağır
@@ -365,6 +373,20 @@ function handleOther(vendor, route, req, res, json) {
   const isAnthropic = vendor === 'anthropic';
   const flat = JSON.stringify(isAnthropic ? json : json.messages ?? json);
 
+  if (vendor === 'ollama' && req.method === 'GET' && route === '/api/tags') {
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(
+      JSON.stringify({
+        models: [
+          { name: 'llama3.2', modified_at: '2026-09-01T00:00:00Z', size: 2019393189, details: { family: 'llama' } },
+          { name: 'qwen2.5', modified_at: '2026-08-01T00:00:00Z', size: 4683087332, details: { family: 'qwen2' } },
+          { name: 'nomic-embed-text', modified_at: '2026-07-01T00:00:00Z', size: 274301056, details: { family: 'nomic-bert' } },
+        ],
+      }),
+    );
+    return;
+  }
+
   if (req.method === 'GET' && route === '/models') {
     res.writeHead(200, { 'content-type': 'application/json' });
     if (isAnthropic) {
@@ -421,7 +443,7 @@ function handleOther(vendor, route, req, res, json) {
   }
 
   if (req.method === 'POST' && route === '/chat/completions') {
-    if (!req.headers.authorization?.startsWith('Bearer ')) {
+    if (vendor !== 'ollama' && !req.headers.authorization?.startsWith('Bearer ')) {
       res.writeHead(401, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ error: { message: 'Authorization: Bearer eksik', type: 'invalid_request_error', code: 'invalid_api_key' } }));
       return;

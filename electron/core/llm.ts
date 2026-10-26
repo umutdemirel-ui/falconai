@@ -9,8 +9,8 @@ import {
   type GeminiPart,
   type StreamChunk,
 } from './gemini';
-import { getConfig, providerKey } from './config';
-import { providerSpec } from './provider-specs';
+import { getConfig, providerAvailable, providerKey, setProviderModel } from './config';
+import { isLocalProvider, providerSpec } from './provider-specs';
 import { log } from './logger';
 import type { ApiTestResult, ProviderId } from '../../shared/types';
 
@@ -61,11 +61,11 @@ function candidates(opts: ChatOptions): ProviderId[] {
   const primary = opts.provider ?? cfg.ai.primary;
   const list: ProviderId[] = [primary];
   if (cfg.ai.fallback) {
-    const order: ProviderId[] = ['gemini', 'openai', 'anthropic', 'nvidia', 'abacus'];
+    const order: ProviderId[] = ['gemini', 'openai', 'anthropic', 'nvidia', 'abacus', 'ollama'];
     for (const id of order) if (id !== primary && !list.includes(id)) list.push(id);
   }
   return list.filter((id) => {
-    if (!providerKey(id)) return false;
+    if (!providerAvailable(id)) return false;
     if (opts.requireVision && !providerSpec(id).supportsVision) return false;
     return true;
   });
@@ -86,7 +86,23 @@ function modelChainFor(id: ProviderId, requested?: string): string[] {
 }
 
 function noProviderMessage(): string {
-  return 'Hiçbir yapay zekâ sağlayıcısı yapılandırılmamış. Ayarlar → API ve Modeller bölümünden Google, OpenAI, Anthropic, NVIDIA veya Abacus anahtarlarından birini ekleyin.';
+  return 'Hiçbir yapay zekâ sağlayıcısı yapılandırılmamış. Ayarlar → API ve Modeller bölümünden Gemini, OpenAI, Anthropic, NVIDIA veya Abacus anahtarlarından birini ekleyin ya da yerel Ollama’yı seçin.';
+}
+
+/** Ollama kökü (…/v1 olmadan) — /api/tags keşfi için. */
+function localRoot(): string {
+  const entry = getConfig().ai.providers.ollama;
+  const base = (entry?.baseUrl?.trim() || providerSpec('ollama').baseUrl).replace(/\/+$/, '');
+  return base.replace(/\/v1$/i, '');
+}
+
+function localDownMessage(): string {
+  return 'Ollama’ya ulaşılamadı. Terminalde “ollama serve” çalıştırın, modeli indirin (ör. “ollama pull llama3.2”) veya Ayarlar’dan başka bir sağlayıcı seçin.';
+}
+
+function isConnRefused(err: unknown): boolean {
+  const text = err instanceof Error ? `${err.message} ${(err as { cause?: { code?: string } }).cause?.code ?? ''}` : String(err);
+  return /ECONNREFUSED|ECONNRESET|EHOSTUNREACH|ENOTFOUND|fetch failed|socket hang up/i.test(text);
 }
 
 /* ------------------------------------------------------------------ */
@@ -284,19 +300,46 @@ async function openAiRequest(
   stream: boolean,
 ): Promise<Response> {
   const key = providerKey(provider);
-  if (!key) throw new ProviderError('API anahtarı yok', 401, 'NO_KEY', model);
+  if (!key && !isLocalProvider(provider)) throw new ProviderError('API anahtarı yok', 401, 'NO_KEY', model);
   const url = `${baseUrlFor(provider)}/chat/completions`;
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${key}`,
-      ...(provider === 'abacus' ? { 'x-api-key': key } : {}),
-    },
-    body: JSON.stringify(oaiBody({ ...opts, requireVision: opts.requireVision && isVisionModel(provider, model) }, model, stream, provider)),
-    signal: timeoutSignal(opts.signal, opts.timeoutMs ?? 180_000),
-  });
-  if (!res.ok) throw errorFromResponse(res.status, await res.text(), model, provider);
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(key ? { Authorization: `Bearer ${key}` } : {}),
+        ...(provider === 'abacus' && key ? { 'x-api-key': key } : {}),
+      },
+      body: JSON.stringify(oaiBody({ ...opts, requireVision: opts.requireVision && isVisionModel(provider, model) }, model, stream, provider)),
+      signal: timeoutSignal(opts.signal, opts.timeoutMs ?? 180_000),
+    });
+  } catch (err) {
+    if (isLocalProvider(provider) && isConnRefused(err)) {
+      throw new ProviderError(localDownMessage(), 0, 'OLLAMA_DOWN', model, true);
+    }
+    throw new ProviderError(
+      `${providerSpec(provider).label}: bağlantı kurulamadı (${err instanceof Error ? err.message : String(err)}).`,
+      0,
+      'NETWORK',
+      model,
+      true,
+    );
+  }
+  if (!res.ok) {
+    const body = await res.text();
+    if (isLocalProvider(provider) && /model.*not found/i.test(body)) {
+      throw new ProviderError(
+        `Ollama: “${model}” modeli indirilmemiş. “ollama pull ${model}” komutunu çalıştırın veya Ayarlar’dan başka bir model seçin.`,
+        404,
+        'MODEL_MISSING',
+        model,
+        false,
+        true,
+      );
+    }
+    throw errorFromResponse(res.status, body, model, provider);
+  }
   return res;
 }
 
@@ -570,8 +613,8 @@ export async function generateChat(opts: ChatOptions): Promise<ChatResult> {
         const missing = isModelMissing(err);
         const retryable = isRetryable(err) || /model bulunamadı/i.test(normalized.message);
         if (missing) continue;
-        if (retryable && provider === 'gemini') continue;
-        // 401/403 veya ağ: sonraki sağlayıcıya geç
+        if (retryable) continue;
+        // 401/403: anahtar hatalı, yedeğe geçmeyi denemek anlamsız
         break;
       }
     }
@@ -607,11 +650,30 @@ export async function* streamChat(opts: ChatOptions): AsyncGenerator<ChatChunk> 
         log.warn(`akış hatası (${provider}/${model})`, err instanceof Error ? err.message : err);
         if (emitted) throw err;
         if (isModelMissing(err)) continue;
+        if (err instanceof ProviderError && err.retryable) continue;
         break;
       }
     }
   }
   throw lastError instanceof Error ? lastError : new ProviderError('Hiçbir sağlayıcı yanıt vermedi.');
+}
+
+/**
+ * Ollama'da model seçilmemişse indirilmiş ilk sohbet modelini ayarlar.
+ * Yerel kullanımda kullanıcıdan model adı ezberlemesini beklemeyiz.
+ */
+export async function ensureLocalModel(): Promise<string> {
+  const cfg = getConfig();
+  const saved = cfg.ai.providers.ollama.model?.trim() ?? '';
+  const models = await listProviderModels('ollama');
+  if (!models.length) throw new ProviderError('Ollama’da hiç model yok. “ollama pull llama3.2” ile bir model indirin.', 404, 'MODEL_MISSING');
+  const chat = models.filter((m) => !/embed|nomic|mxbai/i.test(m));
+  const chosen = saved && models.includes(saved) ? saved : chat[0] ?? models[0];
+  if (chosen !== saved) {
+    setProviderModel('ollama', chosen);
+    log.info(`Ollama modeli seçildi: ${chosen}`);
+  }
+  return chosen;
 }
 
 /* ------------------------------------------------------------------ */
@@ -622,6 +684,19 @@ export async function listProviderModels(provider: ProviderId): Promise<string[]
   if (provider === 'gemini') {
     const models = await geminiListModels(true);
     return models.map((m) => m.name.replace(/^models\//, ''));
+  }
+  if (isLocalProvider(provider)) {
+    // Ollama: /api/tags → { models: [{ name, size, details }] }
+    let res: Response;
+    try {
+      res = await fetch(`${localRoot()}/api/tags`, { signal: timeoutSignal(undefined, 10_000) });
+    } catch (err) {
+      if (isConnRefused(err)) throw new ProviderError(localDownMessage(), 0, 'OLLAMA_DOWN');
+      throw err;
+    }
+    if (!res.ok) throw errorFromResponse(res.status, await res.text(), undefined, provider);
+    const data = (await res.json()) as { models?: { name?: string }[] };
+    return [...new Set((data.models ?? []).map((m) => m.name ?? '').filter(Boolean))].sort();
   }
   const key = providerKey(provider);
   if (!key) throw new ProviderError('Bu sağlayıcı için API anahtarı yok.', 401, 'NO_KEY');
@@ -640,6 +715,28 @@ export async function listProviderModels(provider: ProviderId): Promise<string[]
 
 export async function testProvider(provider: ProviderId): Promise<ApiTestResult> {
   const started = Date.now();
+  if (isLocalProvider(provider)) {
+    try {
+      const models = await listProviderModels(provider);
+      if (!models.length) {
+        return {
+          ok: false,
+          message: 'Ollama çalışıyor ama hiç model indirilmemiş. Terminalde “ollama pull llama3.2” çalıştırın.',
+          latencyMs: Date.now() - started,
+        };
+      }
+      const cfg = getConfig().ai.providers.ollama;
+      const model = cfg.model?.trim() || models[0];
+      return {
+        ok: true,
+        message: `Ollama çalışıyor (${models.length} model). Kullanılacak model: ${model}.`,
+        model,
+        latencyMs: Date.now() - started,
+      };
+    } catch (err) {
+      return { ok: false, message: err instanceof Error ? err.message : String(err), latencyMs: Date.now() - started };
+    }
+  }
   try {
     const result = await generateChat({
       provider,
