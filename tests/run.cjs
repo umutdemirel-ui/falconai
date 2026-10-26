@@ -192,6 +192,9 @@ async function main() {
   const cmdTool = await toolChat('run_command', { command: 'echo merhaba-falcon' });
   check('run_command gerçekten çalıştı', (cmdTool?.tool?.output ?? '').includes('merhaba-falcon') || isWindows, cmdTool?.tool?.output);
 
+  const cwdTool = await toolChat('run_command', { command: isWindows ? 'Get-Location' : 'pwd', cwd: workDir });
+  check('run_command cwd klasöründe çalıştı', (cwdTool?.tool?.output ?? '').includes(workDir), cwdTool?.tool?.output);
+
   const blockedCmd = await toolChat('run_command', { command: 'mkfs.ext4 /dev/sda1' });
   check('Kara listedeki komut engellendi', blockedCmd?.tool?.status === 'error' && (blockedCmd?.tool?.output ?? '').includes('Güvenlik'), blockedCmd?.tool?.detail);
 

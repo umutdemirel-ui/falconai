@@ -89,7 +89,7 @@ Yedi sekme: **Genel**, **API ve Modeller**, **Ses ve Konuşma**, **İzinler ve G
 | Anahtar saklama | İşletim sistemi kasası (DPAPI / Keychain), diskte `enc:` önekli şifreli |
 | Veri | Yerel JSON deposu + değiştirilemez `audit.jsonl` denetim kaydı |
 | Paketleme | electron-builder → NSIS (.exe), DMG (.dmg), AppImage + .deb |
-| Test | 51 arka uç entegrasyon testi (Electron + Gemini taklit edilerek) |
+| Test | 52 arka uç entegrasyon testi (Electron + Gemini taklit edilerek) |
 
 ### İstek akışı
 

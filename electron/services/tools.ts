@@ -821,8 +821,8 @@ const TOOLS: FalconTool[] = [
       const cwd = str(a.cwd) ? assertPathAllowed(resolvePath(str(a.cwd))) : homeDir();
       const timeout = Math.min(Math.max(num(a.timeout_seconds, 60), 1), 600) * 1000;
       const result = isWindows()
-        ? await run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command], { timeout })
-        : await run('/bin/sh', ['-c', command], { timeout, shell: false });
+        ? await run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command], { timeout, cwd })
+        : await run('/bin/sh', ['-c', command], { timeout, cwd, shell: false });
       const out = redact((result.stdout || '') + (result.stderr ? `\n[stderr]\n${result.stderr}` : '')).trim();
       return {
         ok: result.code === 0,

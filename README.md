@@ -275,7 +275,7 @@ Yanıt → arayüz (akış) → Gemini TTS (WAV) → hoparlör
 | `npm start` | Derle ve çalıştır |
 | `npm run build` | Electron + arayüz derlemesi (`dist/`, `dist-electron/`) |
 | `npm run typecheck` | TypeScript denetimi (iki taraf) |
-| `npm run test:backend` | Arka uç entegrasyon testi (51 test) |
+| `npm run test:backend` | Arka uç entegrasyon testi (52 test) |
 | `npm run preview` | Tarayıcıda arayüz önizlemesi (demo veri) |
 | `npm run dist` | Geçerli platform için kurulum paketi |
 | `npm run dist:win` / `dist:mac` / `dist:linux` | Platforma özel paket (`release/`) |
@@ -294,7 +294,7 @@ STT, dosya yazma/okuma/arama, **kara liste engeli**, **sistem klasörü korumas�
 veri katmanı, gündem ve uzman ajanlar.
 
 ```
-51/51 test geçti
+52/52 test geçti
 ```
 
 <p align="center">

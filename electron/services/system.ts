@@ -19,12 +19,13 @@ export const isLinux = !isWindows() && !isMac();
 export async function run(
   cmd: string,
   args: string[] = [],
-  opts: { timeout?: number; shell?: boolean } = {},
+  opts: { timeout?: number; shell?: boolean; cwd?: string } = {},
 ): Promise<{ stdout: string; stderr: string; code: number }> {
   try {
     if (opts.shell) {
       const { stdout, stderr } = await execAsync(cmd, {
         timeout: opts.timeout ?? 20000,
+        cwd: opts.cwd,
         windowsHide: true,
         maxBuffer: 8 * 1024 * 1024,
         shell: isWindows() ? 'powershell.exe' : '/bin/sh',
@@ -33,6 +34,7 @@ export async function run(
     }
     const { stdout, stderr } = await execFileAsync(cmd, args, {
       timeout: opts.timeout ?? 20000,
+      cwd: opts.cwd,
       windowsHide: true,
       maxBuffer: 8 * 1024 * 1024,
     });
