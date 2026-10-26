@@ -36,15 +36,32 @@ function pcmWavBase64() {
 }
 
 const MODELS = [
+  'gemini-4-argon',
   'gemini-3.8-flash',
-  'gemini-3.8-flash-lite',
-  'gemini-3.5-flash-lite',
+  'gemini-3.8-live',
   'gemini-3.8-flash-tts',
-  'gemini-2.5-flash',
-  'gemini-2.5-pro',
+  'gemini-3.8-flash-lite-tts',
+  'gemini-3.6-flash',
+  'gemini-3.5-flash-lite',
+  'gemini-3.1-flash-lite',
   'gemini-embedding-001',
   'imagen-4.0-generate-001',
 ];
+
+/** Gerçek API gibi: emekli modeller 404 döner. */
+const RETIRED = /gemini-(1\.|2\.|3\.0|3-flash)/i;
+function retiredResponse(model, res) {
+  res.writeHead(404, { 'content-type': 'application/json' });
+  res.end(
+    JSON.stringify({
+      error: {
+        code: 404,
+        message: `This model models/${model} is no longer available. Please update your code to use models/gemini-3.8-flash for the latest features and improvements.`,
+        status: 'NOT_FOUND',
+      },
+    }),
+  );
+}
 
 function sse(events) {
   return events.map((e) => `data: ${JSON.stringify(e)}\n\n`).join('');
@@ -96,6 +113,11 @@ const server = http.createServer((req, res) => {
     }
 
     if (req.url.includes(':streamGenerateContent')) {
+      const streamModel = decodeURIComponent(req.url.split('/models/')[1].split(':')[0]);
+      if (RETIRED.test(streamModel)) {
+        retiredResponse(streamModel, res);
+        return;
+      }
       const contents = json.contents || [];
       const flattened = JSON.stringify(contents);
       const hasFunctionResponse = flattened.includes('functionResponse');
@@ -145,6 +167,10 @@ const server = http.createServer((req, res) => {
 
     if (req.url.includes(':generateContent')) {
       const model = decodeURIComponent(req.url.split('/models/')[1].split(':')[0]);
+      if (RETIRED.test(model)) {
+        retiredResponse(model, res);
+        return;
+      }
       const cfg = json.generationConfig || {};
 
       // TTS isteği

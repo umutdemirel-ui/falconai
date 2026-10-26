@@ -4,6 +4,7 @@ import { paths } from './paths';
 import { log } from './logger';
 import { decryptSecret, encryptSecret, maskSecret } from './secrets';
 import { PROVIDER_ORDER, providerSpec } from './provider-specs';
+import { isRetiredModel } from './model-utils';
 import {
   DEFAULT_CONFIG,
   type AiSettings,
@@ -68,7 +69,33 @@ export function loadConfig(): Config {
   const defaults = structuredClone(DEFAULT_CONFIG);
   config = mergeConfig(defaults, config);
   config.hasApiKey = anyProviderKey(config);
+  healRetiredModels(config);
   return config;
+}
+
+const MODEL_KEYS = ['brain', 'fast', 'vision', 'tts', 'stt', 'search'] as const;
+
+/**
+ * API'den kaldırılmış (404 dönen) model adlarını varsayılana döndürür.
+ * Eski ayar dosyaları yüzünden her istekte 404 zinciri yaşanmasın.
+ */
+function healRetiredModels(cfg: Config): void {
+  const defaults = DEFAULT_CONFIG.models;
+  const changed: string[] = [];
+  for (const key of MODEL_KEYS) {
+    if (isRetiredModel(cfg.models[key])) {
+      changed.push(`${key}: ${cfg.models[key]} → ${defaults[key]}`);
+      cfg.models[key] = defaults[key];
+    }
+  }
+  if (!changed.length) return;
+  log.warn('emekli model adları güncellendi', changed.join(' · '));
+  try {
+    fs.mkdirSync(paths.config().replace(/config\.json$/, ''), { recursive: true });
+    fs.writeFileSync(paths.config(), JSON.stringify(cfg, null, 2), 'utf8');
+  } catch (err) {
+    log.warn('model düzeltmesi kaydedilemedi', err);
+  }
 }
 
 export function saveConfig(): void {

@@ -368,7 +368,7 @@ function createDemoApi(): FalconApi {
       }),
       providerModels: async (provider) =>
         provider === 'gemini'
-          ? ['gemini-3.8-flash', 'gemini-3.5-flash-lite', 'gemini-3.8-flash-tts']
+          ? ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-3.8-flash-tts']
           : provider === 'openai'
             ? ['gpt-5.6', 'gpt-5.5', 'gpt-5.4-mini']
             : provider === 'anthropic'

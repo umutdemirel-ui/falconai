@@ -301,7 +301,7 @@ Yanıt → arayüz (akış) → Gemini/OpenAI TTS (WAV) → hoparlör
 | `npm start` | Derle ve çalıştır |
 | `npm run build` | Electron + arayüz derlemesi (`dist/`, `dist-electron/`) |
 | `npm run typecheck` | TypeScript denetimi (iki taraf) |
-| `npm run test:backend` | Derle + arka uç entegrasyon testi (84 test) |
+| `npm run test:backend` | Derle + arka uç entegrasyon testi (90 test) |
 | `npm run preview` | Tarayıcıda arayüz önizlemesi (demo veri) |
 | `npm run dist` | Geçerli platform için kurulum paketi |
 | `npm run dist:win` / `dist:mac` / `dist:linux` | Platforma özel paket (`release/`) |
@@ -315,13 +315,13 @@ npm run test:backend
 ```
 
 Gerçek ana süreç kodunu ekran/GPU olmadan çalıştırır; Electron ve **beş sağlayıcının API’si** taklit edilir
-(`tests/harness/gemini-mock.cjs`) ve şunlar sınanır: ayar şifreleme, sağlayıcı anahtarları ve maskeleme,
+(`tests/harness/gemini-mock.cjs`) ve şunlar sınanır: ayar şifreleme, **emekli model adlarının onarılması**, sağlayıcı anahtarları ve maskeleme,
 OpenAI/Anthropic/NVIDIA/Abacus istemcileri, model keşfi, bağlantı testi, **ajan araç döngüsü**, TTS (geçerli WAV),
 Whisper STT, **app:// protokolü** (SPA yönlendirme + dizin dışına çıkış koruması), dosya yazma/okuma/arama,
 **kara liste engeli**, **sistem klasörü koruması**, **onay akışı**, veri katmanı, gündem ve uzman ajanlar.
 
 ```
-84/84 test geçti
+90/90 test geçti
 ```
 
 <p align="center">
@@ -352,9 +352,11 @@ Paketlenen uygulama `build/icon.png` (1024×1024) ve tepsi simgesi `assets/falco
 | --- | --- |
 | “Bağlantı kurulamadı · API key not valid” | Anahtarı yeniden gir; doğru sağlayıcı kartına yapıştırdığından ve anahtarın o API’de etkin olduğundan emin ol. |
 | `429 RATE_LIMITED` | Dakikalık/günlük kota. Birkaç saniye bekle veya Ayarlar’dan `flash-lite` modeline geç. |
-| “Model bulunamadı” | Falcon otomatik olarak hesabındaki en yakın modele geçer; Ayarlar → API ve Modeller’den elle de seçebilirsin. |
+| “Model bulunamadı” | Falcon emekli model adlarını atlar, sıradaki güncel modele geçer ve hesabındaki modellere göre ayarları kendisi uyarlar; Ayarlar → API ve Modeller’den elle de seçebilirsin. |
 | Ses çıkmıyor | Ayarlar → Ses: ses motoru *AI sesi*, “Yanıtları sesli oku” açık mı? Ses sağlayıcısının anahtarı var mı? Sistem ses çıkışı açık mı? |
 | **Sesli komut çalışmıyor** | Ayarlar → Ses ve Konuşma → **Mikrofon testi**: kaydı dinle ve “Yazıya dök”. Kayıt sessizse cihaz/izin; kayıt iyiyse anahtar veya internet sorunudur. Ses sağlayıcısı Gemini ise Gemini anahtarı, OpenAI ise OpenAI anahtarı gerekir. |
+| “Ses yazıya dökülemedi: bağlantı zaman aşımına uğradı” | Yavaş bağlantıda uzun kayıt yüklemesi zaman aşımına uğrar. Daha kısa konuş (en fazla 30 sn), bağlantını kontrol et veya Ayarlar → Ses ve Konuşma → *Ses sağlayıcısı* → **OpenAI (Whisper)** seç. |
+| “Model bulunamadı / no longer available” | Eski ayar dosyasındaki emekli model adı (gemini-2.x) açılışta otomatik onarılır. Sürümün **1.1+** olduğundan emin ol; Ayarlar → API ve Modeller → **Gemini model eşlemesi**’nden güncel modeli seç. |
 | Mikrofon açılmıyor | Windows/macOS gizlilik ayarlarından Falcon’a mikrofon izni ver; cihazı Ses sayfasından seç. |
 | Uygulama beyaz ekran açılıyor | Geliştirme yapıyorsan `npm run build` ile `dist/` klasörünü üret; paketlenmiş uygulama `app://falcon/index.html` üzerinden yüklenir. |
 | “Uygulama bulunamadı” | Kurulu uygulamaları Falcon’a listelet: “yüklü uygulamaları listele”. Alternatif olarak tam yol ver. |
