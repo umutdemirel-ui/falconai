@@ -235,7 +235,7 @@ const demoInfo: SystemInfo = {
   freeMemGb: 18.6,
   memUsedPct: 42,
   uptimeSec: 15230,
-  appVersion: '1.0.0',
+  appVersion: __APP_VERSION__,
   electron: '45.0.0',
   node: '22.22.3',
   chrome: '140',
@@ -255,21 +255,36 @@ function createDemoApi(): FalconApi {
     model: string,
     defaultModel: string,
     note: string,
-  ): ProviderState => ({
-    id,
-    label,
-    kind,
-    hasKey,
-    masked: hasKey ? `${id === 'openai' ? 'sk-p' : id === 'anthropic' ? 'sk-ant-' : id === 'nvidia' ? 'nvapi-' : id === 'abacus' ? 'abacus-' : 'AIza'}••••••••••••9f2c` : '',
-    model,
-    defaultModel,
-    baseUrl: '',
-    docsUrl: 'https://aistudio.google.com/apikey',
-    keyHint: id === 'openai' ? 'sk-…' : id === 'nvidia' ? 'nvapi-…' : id === 'anthropic' ? 'sk-ant-…' : id === 'abacus' ? 'Abacus API anahtarı' : 'AIza…',
-    supportsVoice: id === 'gemini' || id === 'openai',
-    supportsVision: true,
-    note,
-  });
+  ): ProviderState => {
+    const local = id === 'ollama';
+    return {
+      id,
+      label,
+      kind,
+      hasKey: local || hasKey,
+      keyRequired: !local,
+      local,
+      masked: local ? 'anahtar gerekmez' : hasKey ? `${id === 'openai' ? 'sk-p' : id === 'anthropic' ? 'sk-ant-' : id === 'nvidia' ? 'nvapi-' : id === 'abacus' ? 'abacus-' : 'AIza'}••••••••••••9f2c` : '',
+      model,
+      defaultModel,
+      baseUrl: local ? 'http://127.0.0.1:11434/v1' : '',
+      docsUrl: local ? 'https://ollama.com/download' : 'https://aistudio.google.com/apikey',
+      keyHint: local
+        ? 'Anahtar gerekmez'
+        : id === 'openai'
+          ? 'sk-…'
+          : id === 'nvidia'
+            ? 'nvapi-…'
+            : id === 'anthropic'
+              ? 'sk-ant-…'
+              : id === 'abacus'
+                ? 'Abacus API anahtarı'
+                : 'AIza…',
+      supportsVoice: id === 'gemini' || id === 'openai',
+      supportsVision: !local,
+      note,
+    };
+  };
 
   let config: Config = {
     ...structuredClone(DEFAULT_CONFIG),
@@ -284,6 +299,15 @@ function createDemoApi(): FalconApi {
       demoProvider('anthropic', 'Anthropic Claude', 'anthropic', false, 'claude-sonnet-5-5', 'claude-sonnet-5-5', 'Uzun belgeler ve kod için güçlü.'),
       demoProvider('nvidia', 'NVIDIA NIM', 'openai', false, 'meta/llama-3.3-70b-instruct', 'meta/llama-3.3-70b-instruct', 'Ücretsiz geliştirici kotası.'),
       demoProvider('abacus', 'Abacus AI (RouteLLM)', 'openai', false, 'route-llm', 'route-llm', 'Tek anahtarla 150+ model.'),
+      demoProvider(
+        'ollama',
+        'Ollama (yerel)',
+        'openai',
+        true,
+        'llama3.2',
+        'llama3.2',
+        'Kendi bilgisayarında çalışır: internet, API anahtarı ve ücret gerekmez.',
+      ),
     ],
   };
   const listeners = new Set<(e: ChatEvent) => void>();
@@ -304,7 +328,7 @@ function createDemoApi(): FalconApi {
   const emit = (event: ChatEvent) => listeners.forEach((l) => l(event));
 
   const demoAnswer = (text: string) =>
-    `Anladım Umut. **${text.slice(0, 90)}**${text.length > 90 ? '…' : ''}\n\nBu bir tarayıcı önizlemesi: gerçek uygulamada Gemini API’si ile çalışır, araçları (uygulama açma, dosya okuma, terminal, güç işlemleri) gerçekten çalıştırır ve yanıtı Gemini sesiyle seslendirir.\n\n- Masaüstü uygulamasında tam yetki\n- Google AI Studio anahtarı yeterli\n- Tüm veriler cihazında kalır`;
+    `Anladım Umut. **${text.slice(0, 90)}**${text.length > 90 ? '…' : ''}\n\nBu bir tarayıcı önizlemesi: gerçek uygulamada seçtiğin sağlayıcıyla (Gemini, OpenAI, Anthropic, NVIDIA, Abacus veya yerel Ollama) çalışır, araçları (uygulama açma, dosya okuma, terminal, güç işlemleri) gerçekten çalıştırır ve yanıtı seslendirir.\n\n- Masaüstü uygulamasında tam yetki\n- Bir anahtar yeterli ya da anahtarsız Ollama\n- Tüm veriler cihazında kalır`;
 
   const api: FalconApi = {
     config: {
@@ -375,7 +399,9 @@ function createDemoApi(): FalconApi {
               ? ['claude-sonnet-5-5', 'claude-opus-5-5', 'claude-haiku-5-5']
               : provider === 'nvidia'
                 ? ['meta/llama-3.3-70b-instruct', 'nvidia/nemotron-3-super-120b-a12b']
-                : ['route-llm', 'gpt-6-astra', 'claude-sonnet-5'],
+                : provider === 'ollama'
+                  ? ['llama3.2', 'qwen2.5', 'llama3.1', 'gemma3', 'mistral']
+                  : ['route-llm', 'gpt-6-astra', 'claude-sonnet-5'],
       test: async () => ({ ok: true, message: 'Demo modunda bağlantı doğrulanamaz. Masaüstü uygulamasında gerçek test yapılır.', model: config.models.brain, latencyMs: 240 }),
       models: async () => [
         { name: 'gemini-3.8-flash', displayName: 'Gemini 3.8 Flash', description: '', inputTokenLimit: 1000000, outputTokenLimit: 65536, methods: ['generateContent'] },
@@ -554,7 +580,7 @@ function createDemoApi(): FalconApi {
     onNavigate: () => () => undefined,
     onEmergencyStop: () => () => undefined,
     app: {
-      version: async () => '1.0.0',
+      version: async () => __APP_VERSION__,
       platform: async () => 'win32',
       logs: async () => '[demo] Falcon tarayıcı önizlemesi',
       openLogsFolder: async () => undefined,

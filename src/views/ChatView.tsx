@@ -42,15 +42,33 @@ export function ChatView() {
   const agentState = useStore((s) => s.agentState);
   const agenda = useStore((s) => s.agenda);
   const runAgenda = useStore((s) => s.runAgenda);
+  const setPrimaryProvider = useStore((s) => s.setPrimaryProvider);
   const [exporting, setExporting] = useState(false);
 
   const active = conversations.find((c) => c.id === activeId);
   const hasMessages = messages.length > 0;
+  const activeProvider = config?.providerStates?.find((p) => p.id === config.ai.primary);
+  const activeModel =
+    config?.ai.primary === 'gemini' ? config.models.brain : activeProvider?.model ?? config?.models.brain ?? 'Gemini';
 
   const startVoice = () => {
     if (voice.listening) void voiceEngine.finishListening();
     else if (voice.speaking) voiceEngine.stopSpeaking();
     else void voiceEngine.startListening('push');
+  };
+
+  const tryLocalOllama = async () => {
+    try {
+      await setPrimaryProvider('ollama');
+      const result = await api.config.testProvider('ollama');
+      pushToast({
+        kind: result.ok ? 'success' : 'error',
+        title: result.ok ? 'Yerel mod hazır' : 'Ollama’ya ulaşılamadı',
+        body: result.message,
+      });
+    } catch (err) {
+      pushToast({ kind: 'error', title: 'Ollama açılamadı', body: err instanceof Error ? err.message : String(err) });
+    }
   };
 
   const exportChat = async () => {
@@ -83,7 +101,7 @@ export function ChatView() {
                 : 'Falcon düşünüyor…'
               : voice.listening
                 ? 'Dinliyorum…'
-                : `${config?.models.brain ?? 'Gemini'} · hazır`}
+                : `${activeModel} · hazır`}
           </div>
         </div>
         <div className="flex items-center gap-1.5">
@@ -108,8 +126,12 @@ export function ChatView() {
         <div className="mx-5 mt-3 flex items-center gap-2.5 rounded-xl border border-falcon-500/40 bg-falcon-600/12 px-3.5 py-2.5">
           <KeyRound size={15} className="shrink-0 text-falcon-300" />
           <p className="min-w-0 flex-1 text-[11.5px] leading-relaxed text-white/70">
-            Falcon’un çalışması için bir yapay zekâ API anahtarı gerekiyor: Gemini, OpenAI, Anthropic, NVIDIA veya Abacus. Hangisini istersen ekle.
+            Bulut anahtarı yok. Gemini, OpenAI, Anthropic, NVIDIA veya Abacus anahtarı ekleyebilir ya da{' '}
+            <span className="text-white/90">Ollama</span>’yı kurup anahtarsız, tamamen yerel çalışabilirsin.
           </p>
+          <Button size="sm" variant="ghost" onClick={() => void tryLocalOllama()} title="Yerel Ollama’yı birincil sağlayıcı yap">
+            Ollama ile dene
+          </Button>
           <Button
             size="sm"
             variant="primary"

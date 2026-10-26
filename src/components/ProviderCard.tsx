@@ -68,6 +68,12 @@ export function ProviderCard({ state, primary, onPrimary }: Props) {
       const list = await api.config.providerModels(state.id);
       setModels(list);
       if (!list.length) setMessage({ ok: false, text: 'Model listesi boş döndü.' });
+      else if (!state.model) {
+        await setProviderModel(state.id, list[0]);
+        setMessage({ ok: true, text: `${list.length} model bulundu; “${list[0]}” seçildi.` });
+      } else {
+        setMessage({ ok: true, text: `${list.length} model bulundu.` });
+      }
     } catch (err) {
       setMessage({ ok: false, text: err instanceof Error ? err.message : String(err) });
     } finally {
@@ -101,7 +107,11 @@ export function ProviderCard({ state, primary, onPrimary }: Props) {
             ses
           </span>
         ) : null}
-        {state.hasKey ? (
+        {state.local ? (
+          <span className="rounded border border-emerald-400/25 bg-emerald-500/[0.08] px-1 py-0.5 text-[8.5px] uppercase tracking-wide text-emerald-300/80">
+            yerel · anahtar gerekmez
+          </span>
+        ) : state.hasKey ? (
           <span className="truncate font-mono text-[9.5px] text-white/25">{state.masked}</span>
         ) : (
           <span className="text-[9.5px] text-white/25">anahtar yok</span>
@@ -128,6 +138,7 @@ export function ProviderCard({ state, primary, onPrimary }: Props) {
       <p className="mt-1 text-[10px] leading-relaxed text-white/25">{state.note}</p>
 
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        {state.keyRequired ? (
         <div className="relative min-w-[190px] flex-1">
           <Field
             type={showKey ? 'text' : 'password'}
@@ -159,23 +170,25 @@ export function ProviderCard({ state, primary, onPrimary }: Props) {
             ) : null}
           </div>
         </div>
-        <Button size="sm" variant="primary" onClick={() => void save()} disabled={!key.trim() || busy}>
-          <Save size={11} /> {busy ? '…' : 'Kaydet'}
-        </Button>
-        <Button size="sm" variant="ghost" onClick={() => void test()} disabled={!state.hasKey || testing}>
-          <RefreshCw size={11} className={testing ? 'animate-spin' : ''} /> {testing ? 'Test…' : 'Test'}
+        ) : null}
+        {state.keyRequired ? (
+          <Button size="sm" variant="primary" onClick={() => void save()} disabled={!key.trim() || busy}>
+            <Save size={11} /> {busy ? '…' : 'Kaydet'}
+          </Button>
+        ) : null}
+        <Button size="sm" variant="ghost" onClick={() => void test()} disabled={testing}>
+          <RefreshCw size={11} className={testing ? 'animate-spin' : ''} /> {testing ? 'Test…' : state.local ? 'Ollama’yı test et' : 'Test'}
         </Button>
         <button
           type="button"
           className="flex items-center gap-1 text-[9.5px] text-falcon-300/70 hover:text-falcon-200"
           onClick={() => void api.system.openUrl(state.docsUrl)}
         >
-          <ExternalLink size={9} /> anahtar al
+          <ExternalLink size={9} /> {state.local ? 'Ollama indir' : 'anahtar al'}
         </button>
       </div>
 
-      {state.hasKey ? (
-        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+      <div className="mt-2 flex flex-wrap items-center gap-1.5">
           <div className="relative min-w-[190px] flex-1">
             <Select
               value={state.model || state.defaultModel}
@@ -193,8 +206,7 @@ export function ProviderCard({ state, primary, onPrimary }: Props) {
           <Button size="sm" variant="ghost" onClick={() => void loadModels()} disabled={loadingModels}>
             <List size={11} /> {loadingModels ? 'Modeller…' : 'Modelleri getir'}
           </Button>
-        </div>
-      ) : null}
+      </div>
 
       {message ? (
         <p className={cn('mt-2 flex items-start gap-1 text-[10px] leading-relaxed', message.ok ? 'text-emerald-300/80' : 'text-falcon-200/90')}>

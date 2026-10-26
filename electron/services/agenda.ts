@@ -1,4 +1,4 @@
-import { getConfig } from '../core/config';
+import { getConfig, hasProviderKey } from '../core/config';
 import { log } from '../core/logger';
 import { uid } from '../core/store';
 import { listDigests, saveDigest } from '../core/db';
@@ -34,6 +34,11 @@ const DIGEST_SCHEMA: Record<string, unknown> = {
 
 export async function buildDigest(opts: { topics?: string[]; hours?: number } = {}): Promise<AgendaDigest> {
   const cfg = getConfig();
+  if (!hasProviderKey('gemini')) {
+    throw new Error(
+      'Gündem özeti Google Arama destekli Gemini ile hazırlanır. Ayarlar → API ve Modeller bölümünden Gemini anahtarı ekleyin (yerel Ollama gündem toplayamaz).',
+    );
+  }
   const topics = (opts.topics?.length ? opts.topics : cfg.agenda.topics).filter(Boolean);
   const hours = opts.hours ?? 24;
   const today = new Date().toLocaleDateString('tr-TR', { dateStyle: 'full' });

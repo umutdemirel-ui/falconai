@@ -3,6 +3,7 @@
 Falcon, bilgisayarında **tam yetkiyle** çalışan Türkçe sesli yapay zekâ ajanıdır.
 Electron tabanlı gerçek bir masaüstü uygulamasıdır; tarayıcıda açılan bir site değildir.
 Tek ihtiyacı bir **yapay zekâ API anahtarı**dır: Google Gemini, OpenAI, Anthropic, NVIDIA NIM veya Abacus AI.
+Anahtar istemeyen **Ollama** ile tamamen yerel de çalışır.
 
 Bu sayfa uygulamanın tüm ekranlarını gösterir. Kurulum ve kullanım için [README](../README.md).
 
@@ -65,10 +66,14 @@ Falcon’a “bu dosyayı özetle” dediğinde analiz burada listelenen dosyala
 
 ## Sağlayıcılar — Ayarlar → API ve Modeller
 
-Beş sağlayıcı kartı: anahtar ekleme, maskeleme, bağlantı testi, model listesi ve “birincil yap”.
-Falcon anahtarı olan sağlayıcıyla çalışır; hata olursa sıradaki anahtarlı sağlayıcıya geçer.
+Altı sağlayıcı kartı: anahtar ekleme, maskeleme, bağlantı testi, model listesi ve “birincil yap”.
+Falcon anahtarı olan sağlayıcıyla çalışır; hata olursa sıradaki kullanılabilir sağlayıcıya geçer.
+**Ollama (yerel)** kartı anahtar istemez: kurulumu algılar, indirilmiş modelleri listeler ve model seçilmemişse
+ilk sohbet modelini kendisi atar. Sunucu kapalıysa kart “ollama serve” yönlendirmesi gösterir.
 
 ![Sağlayıcılar](screenshots/saglayicilar.png)
+
+![Yerel Ollama sağlayıcısı](screenshots/saglayicilar-ollama.png)
 
 ---
 
@@ -84,8 +89,11 @@ Yedi sekme: **Genel**, **API ve Modeller**, **Ses ve Konuşma**, **İzinler ve G
 ## Kurulum (onboarding)
 
 İlk açılışta dört adım: adın → sağlayıcı seçimi + API anahtarı (test ile) → yetki seviyesi → ses motoru ve ses seçimi.
+Sağlayıcı adımında Ollama seçilirse anahtar alanı yerine yerel kurulum yönergesi gösterilir ve bağlantı test edilir.
 
 ![Kurulum](screenshots/kurulum.png)
+
+![Kurulum — sağlayıcı seçimi](screenshots/kurulum-saglayici.png)
 
 ---
 
@@ -95,18 +103,19 @@ Yedi sekme: **Genel**, **API ve Modeller**, **Ses ve Konuşma**, **İzinler ve G
 | --- | --- |
 | Masaüstü çatısı | Electron 45 (contextIsolation + sandbox) |
 | Arayüz | React 19, TypeScript 5.9, Vite 8, Tailwind 3.4, Zustand 5 |
-| Yapay zekâ | Gemini, OpenAI, Anthropic, NVIDIA NIM, Abacus RouteLLM (`electron/core/llm.ts` yönlendiricisi) |
+| Yapay zekâ | Gemini, OpenAI, Anthropic, NVIDIA NIM, Abacus RouteLLM, Ollama (yerel, anahtarsız) — `electron/core/llm.ts` |
 | Ses | Gemini TTS/STT veya OpenAI gpt-4o-mini-tts + Whisper |
 | Anahtar saklama | İşletim sistemi kasası (DPAPI / Keychain), diskte `enc:` önekli şifreli |
 | Veri | Yerel JSON deposu + değiştirilemez `audit.jsonl` denetim kaydı |
 | Paketleme | electron-builder → NSIS (.exe), DMG (.dmg), AppImage + .deb |
-| Test | 90 arka uç entegrasyon testi (Electron + beş sağlayıcı taklit edilerek) |
+| Test | 104 arka uç entegrasyon testi (Electron + altı sağlayıcı taklit edilerek) |
 
 ### İstek akışı
 
 ```
 Mikrofon → WAV → Gemini/OpenAI STT → ajan döngüsü (en fazla 24 araç adımı)
                                  ├─ birincil sağlayıcıda akış (function calling)
+                                 ├─ bulut anahtarı yoksa → Ollama (127.0.0.1:11434, anahtarsız)
                                  ├─ model yoksa yedek model → diğer sağlayıcı
                                  ├─ izin kontrolü → onay → araç yürütme → denetim kaydı
                                  └─ gözlem modele geri beslenir

@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import { paths } from './paths';
 import { log } from './logger';
 import { decryptSecret, encryptSecret, maskSecret } from './secrets';
-import { PROVIDER_ORDER, providerSpec } from './provider-specs';
+import { PROVIDER_ORDER, isLocalProvider, providerSpec } from './provider-specs';
 import { isRetiredModel } from './model-utils';
 import {
   DEFAULT_CONFIG,
@@ -52,6 +52,7 @@ function mergeAi(base: AiSettings, patch?: Partial<AiSettings>): AiSettings {
       anthropic: { ...base.providers.anthropic, ...(patch.providers?.anthropic ?? {}) },
       nvidia: { ...base.providers.nvidia, ...(patch.providers?.nvidia ?? {}) },
       abacus: { ...base.providers.abacus, ...(patch.providers?.abacus ?? {}) },
+      ollama: { ...base.providers.ollama, ...(patch.providers?.ollama ?? {}) },
     },
   };
 }
@@ -128,7 +129,7 @@ export function publicConfig(): Config {
   return {
     ...cfg,
     apiKeyEncrypted: null,
-    hasApiKey: Boolean(key) || anyProviderKey(cfg),
+    hasApiKey: Boolean(key) || anyProviderAvailable(cfg),
     ai: {
       ...cfg.ai,
       providers: {
@@ -136,6 +137,7 @@ export function publicConfig(): Config {
         anthropic: { ...cfg.ai.providers.anthropic, keyEncrypted: null },
         nvidia: { ...cfg.ai.providers.nvidia, keyEncrypted: null },
         abacus: { ...cfg.ai.providers.abacus, keyEncrypted: null },
+        ollama: { ...cfg.ai.providers.ollama, keyEncrypted: null },
       },
     },
     providerStates: providerStates(cfg),
@@ -162,8 +164,13 @@ export function hasProviderKey(id: ProviderId): boolean {
   return Boolean(providerKey(id));
 }
 
-export function anyProviderAvailable(): boolean {
-  return PROVIDER_ORDER.some((id) => hasProviderKey(id));
+/** Sağlayıcı kullanılabilir mi? Yerel sağlayıcı (Ollama) anahtar istemez. */
+export function providerAvailable(id: ProviderId): boolean {
+  return isLocalProvider(id) || hasProviderKey(id);
+}
+
+export function anyProviderAvailable(cfg: Config = loadConfig()): boolean {
+  return cfg.ai.primary === 'ollama' || PROVIDER_ORDER.some((id) => (!isLocalProvider(id) ? hasProviderKey(id) : false));
 }
 
 export function providerStates(cfg: Config = loadConfig()): ProviderState[] {
@@ -171,12 +178,15 @@ export function providerStates(cfg: Config = loadConfig()): ProviderState[] {
     const spec = providerSpec(id);
     const entry = id === 'gemini' ? null : cfg.ai.providers[id as KeyedProvider];
     const key = id === 'gemini' ? getApiKey() : decryptSecret(entry?.keyEncrypted);
+    const local = isLocalProvider(id);
     return {
       id,
       label: spec.label,
       kind: spec.kind,
-      hasKey: Boolean(key),
-      masked: maskSecret(key),
+      hasKey: local || Boolean(key),
+      keyRequired: !local,
+      local,
+      masked: local ? 'anahtar gerekmez' : maskSecret(key),
       model: entry?.model || (id === 'gemini' ? cfg.models.brain : spec.defaultModel),
       defaultModel: spec.defaultModel,
       baseUrl: entry?.baseUrl || spec.baseUrl,
@@ -216,6 +226,10 @@ export function setApiKey(rawKey: string): Config {
 
 export function setProviderKey(id: ProviderId, rawKey: string): Config {
   if (id === 'gemini') return setApiKey(rawKey);
+  if (isLocalProvider(id)) {
+    if (rawKey.trim()) throw new Error(`${providerSpec(id).label} anahtar kullanmaz; Ayarlar’dan model seçmen yeterli.`);
+    return publicConfig();
+  }
   const key = rawKey.trim();
   if (key) validateKey(key);
   const cfg = loadConfig();

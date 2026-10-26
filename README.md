@@ -6,6 +6,7 @@ Tarayıcıda açılan bir web sitesi değil; Windows / macOS / Linux için gerç
 Uygulama açar, kapatır, dosya okur yazır, terminal komutu çalıştırır, ekranını analiz eder, senin yerine
 gündemi takip eder ve istediğinde **bilgisayarı kapatır**. Tek bir anahtarla çalışır:
 **Google Gemini**, **OpenAI**, **Anthropic Claude**, **NVIDIA NIM** veya **Abacus AI (RouteLLM)** — hangisini istersen.
+Anahtar istemiyorsan **Ollama** ile tamamen yerel çalışır: model kendi bilgisayarında, internet olmadan yanıtlar.
 
 <p align="center">
   <img src="docs/screenshots/ana-ekran.png" alt="Falcon ana ekran" width="900" />
@@ -14,6 +15,9 @@ gündemi takip eder ve istediğinde **bilgisayarı kapatır**. Tek bir anahtarla
 > Tasarım referansı birebir uygulandı: kırmızı-siyah cam paneller, dev mikrofon orbu, sistem durumu,
 > son projeler, izin durumu, sesli asistan penceresi ve bilgisayar araçları.
 > Tüm ekranların görselleri: **[docs/GENEL-BAKIS.md](docs/GENEL-BAKIS.md)**
+
+> **Yeni · sürüm 1.2.0** — **Ollama** ile anahtarsız, tamamen yerel çalışma; kota dolduğunda sağlayıcı yedeği;
+> Gemini model adlarının açılışta otomatik onarımı; `fetch failed` / `ollama serve` için Türkçe yönlendirme.
 
 ---
 
@@ -67,7 +71,8 @@ gündemi takip eder ve istediğinde **bilgisayarı kapatır**. Tek bir anahtarla
 
 - **Node.js 22+** ve npm
 - Windows 10/11, macOS 13+ veya Linux (X11/Wayland)
-- Bir **yapay zekâ API anahtarı**: Gemini (ücretsiz kota), OpenAI, Anthropic, NVIDIA NIM veya Abacus AI
+- Bir **yapay zekâ API anahtarı** (Gemini ücretsiz kota, OpenAI, Anthropic, NVIDIA NIM veya Abacus AI)
+  **veya** anahtarsız yerel çalışma için [Ollama](https://ollama.com/download)
 
 ### Geliştirme modunda çalıştırma
 
@@ -95,7 +100,7 @@ npm run preview      # http://localhost:4173 — demo veriyle çalışır
 
 ## Sağlayıcılar ve API anahtarları
 
-Falcon beş sağlayıcıyla çalışır. **Bir tanesi yeterlidir**; anahtarı olan diğerleri yedek olarak sırayla denenir.
+Falcon altı sağlayıcıyla çalışır. **Bir tanesi yeterlidir**; kullanılabilir diğerleri yedek olarak sırayla denenir.
 
 | Sağlayıcı | Anahtar | Varsayılan model | Ses (TTS/STT) | Not |
 | --- | --- | --- | --- | --- |
@@ -104,12 +109,31 @@ Falcon beş sağlayıcıyla çalışır. **Bir tanesi yeterlidir**; anahtarı ol
 | **Anthropic** | [console.anthropic.com](https://console.anthropic.com/settings/keys) · `sk-ant-…` | `claude-sonnet-5-5` | — | Uzun belgeler, kod |
 | **NVIDIA NIM** | [build.nvidia.com](https://build.nvidia.com) · `nvapi-…` | `meta/llama-3.3-70b-instruct` | — | Ücretsiz geliştirici kotası, `üretici/model` adları |
 | **Abacus AI (RouteLLM)** | [abacus.ai/help/route-llm](https://abacus.ai/help/route-llm/) | `route-llm` | — | Tek anahtarla 150+ model, otomatik yönlendirme |
+| **Ollama (yerel)** | **anahtar gerekmez** · [ollama.com/download](https://ollama.com/download) | `llama3.2` | — | Kendi bilgisayarında çalışır; internet/ücret yok |
 
 **Kurulum:** Falcon’u aç → **Ayarlar → API ve Modeller** → sağlayıcı kartına anahtarı yapıştır → **Kaydet** →
 **Test**. Aynı ekrandan “birincil yap” ile sohbeti taşıyabilir, modeli değiştirebilir veya “Modelleri getir” ile
 hesabındaki gerçek model listesini çekebilirsin. İlk kurulum ekranı da sağlayıcı seçtirir.
 
+### Anahtarsız yerel çalışma (Ollama)
+
+1. [Ollama](https://ollama.com/download) kurulumunu indir ve çalıştır (Windows/macOS/Linux).
+2. Terminalde bir model indir: `ollama pull llama3.2` (alternatif: `qwen2.5`, `llama3.1`, `gemma3`, `mistral`).
+3. Falcon → **Ayarlar → API ve Modeller → Ollama (yerel)** → **Ollama’yı test et** → **birincil yap**.
+
+Falcon indirilmiş modelleri `/api/tags` üzerinden kendisi bulur, model seçilmemişse ilk sohbet modelini
+otomatik atar. Sunucu kapalıysa ya da model indirilmemişse Türkçe yönlendirme gösterir:
+`ollama serve` / `ollama pull <model>`. Yerel modda istekler cihazdan çıkmaz; ses (TTS/STT), görsel analiz
+ve Google Arama destekli gündem için yine Gemini veya OpenAI anahtarı gerekir — Ollama sohbet ve araç
+kullanımı içindir.
+
+### Anahtar yoksa / kota bittiyse
+
+Falcon anahtarı olan sağlayıcıyı sırayla dener. Gemini kotası dolarsa (`429 RESOURCE_EXHAUSTED`) anahtarı
+olan sıradaki sağlayıcıya geçer; hiç bulut anahtarı yoksa Ollama birincil sağlayıcı olarak yanıt üretir.
+
 - **Ses sağlayıcısı** ayrı seçilir: Ayarlar → Ses ve Konuşma → *Ses sağlayıcısı* (Gemini veya OpenAI).
+  Ollama yereldir ve ses üretmez; bu yüzden ses özellikleri yerel modda kapalıdır.
   Ses özellikleri için bu iki sağlayıcıdan birinin anahtarı gerekir; diğerleri sohbet/araç için yeterlidir.
 - Anahtarlar işletim sisteminin güvenli deposuyla (**DPAPI / macOS Keychain / libsecret**) şifrelenir;
   `config.json` içinde düz metin **tutulmaz**, hiçbir Falcon sunucusuna gönderilmez.
@@ -119,6 +143,9 @@ hesabındaki gerçek model listesini çekebilirsin. İlk kurulum ekranı da sağ
 <p align="center">
   <img src="docs/screenshots/saglayicilar.png" alt="Sağlayıcılar" width="900" />
 </p>
+<p align="center">
+  <img src="docs/screenshots/saglayicilar-ollama.png" alt="Yerel Ollama sağlayıcısı" width="900" />
+</p>
 
 ---
 
@@ -127,7 +154,7 @@ hesabındaki gerçek model listesini çekebilirsin. İlk kurulum ekranı da sağ
 | Adım | Ne olur |
 | --- | --- |
 | 1 | **Adın** sorulur; Falcon sana adınla hitap eder. |
-| 2 | **Sağlayıcı seçilir** (Gemini / OpenAI / Anthropic / NVIDIA / Abacus), anahtar girilir ve bağlantı test edilir. |
+| 2 | **Sağlayıcı seçilir** (Gemini / OpenAI / Anthropic / NVIDIA / Abacus / Ollama), anahtar girilir (Ollama’da gerekmez) ve bağlantı test edilir. |
 | 3 | **Yetki seviyesi** seçilir (tam yetki / akıllı / her işlemde sor). |
 | 4 | **Ses** seçilir (Gemini sesi: Kore, Puck, Charon… / sistem sesi / sessiz). |
 
@@ -254,7 +281,7 @@ Ayarlar → **Veri ve Gizlilik** bölümünden tek tıkla **yedek al**, yedekten
 │   ├── main.ts               # pencere, tepsi, kısayollar, IPC, izinler, app:// protokolü
 │   ├── preload.ts            # güvenli köprü (contextIsolation, sandbox)
 │   ├── core/
-│   │   ├── llm.ts            # sağlayıcı yönlendirici (Gemini / OpenAI / Anthropic / NVIDIA / Abacus)
+│   │   ├── llm.ts            # sağlayıcı yönlendirici (Gemini / OpenAI / Anthropic / NVIDIA / Abacus / Ollama)
 │   │   ├── provider-specs.ts # sağlayıcı tanımları, modeller, anahtar ipuçları
 │   │   ├── gemini.ts         # Gemini istemcisi: akış, araç çağrısı, TTS, STT, arama
 │   │   ├── agent.ts          # ajan döngüsü (düşün → araç → gözlem → yanıt)
@@ -286,6 +313,7 @@ Ayarlar → **Veri ve Gizlilik** bölümünden tek tıkla **yedek al**, yedekten
 ```
 Mikrofon → WAV → Gemini/OpenAI (STT) → ajan döngüsü
                                    ├─ seçili sağlayıcıda stream (function calling)
+                                   │   └─ bulut anahtarı yoksa: Ollama (127.0.0.1:11434, anahtarsız)
                                    ├─ araç yürütme (izin + onay + denetim)
                                    └─ gözlem → modele geri besleme
 Yanıt → arayüz (akış) → Gemini/OpenAI TTS (WAV) → hoparlör
@@ -301,7 +329,7 @@ Yanıt → arayüz (akış) → Gemini/OpenAI TTS (WAV) → hoparlör
 | `npm start` | Derle ve çalıştır |
 | `npm run build` | Electron + arayüz derlemesi (`dist/`, `dist-electron/`) |
 | `npm run typecheck` | TypeScript denetimi (iki taraf) |
-| `npm run test:backend` | Derle + arka uç entegrasyon testi (90 test) |
+| `npm run test:backend` | Derle + arka uç entegrasyon testi (104 test) |
 | `npm run preview` | Tarayıcıda arayüz önizlemesi (demo veri) |
 | `npm run dist` | Geçerli platform için kurulum paketi |
 | `npm run dist:win` / `dist:mac` / `dist:linux` | Platforma özel paket (`release/`) |
@@ -314,14 +342,15 @@ Yanıt → arayüz (akış) → Gemini/OpenAI TTS (WAV) → hoparlör
 npm run test:backend
 ```
 
-Gerçek ana süreç kodunu ekran/GPU olmadan çalıştırır; Electron ve **beş sağlayıcının API’si** taklit edilir
+Gerçek ana süreç kodunu ekran/GPU olmadan çalıştırır; Electron ve **altı sağlayıcının API’si** taklit edilir
 (`tests/harness/gemini-mock.cjs`) ve şunlar sınanır: ayar şifreleme, **emekli model adlarının onarılması**, sağlayıcı anahtarları ve maskeleme,
-OpenAI/Anthropic/NVIDIA/Abacus istemcileri, model keşfi, bağlantı testi, **ajan araç döngüsü**, TTS (geçerli WAV),
+OpenAI/Anthropic/NVIDIA/Abacus istemcileri, **anahtarsız Ollama** (`/api/tags`, model otomatik seçimi, `ollama serve`
+yönlendirmesi), model keşfi, bağlantı testi, **kota dolunca sağlayıcı yedeği**, **ajan araç döngüsü**, TTS (geçerli WAV),
 Whisper STT, **app:// protokolü** (SPA yönlendirme + dizin dışına çıkış koruması), dosya yazma/okuma/arama,
 **kara liste engeli**, **sistem klasörü koruması**, **onay akışı**, veri katmanı, gündem ve uzman ajanlar.
 
 ```
-90/90 test geçti
+104/104 test geçti
 ```
 
 <p align="center">
@@ -381,6 +410,7 @@ hata verirse diğerine geçer.
 
 **Maliyeti nedir?**
 Gemini API’nin ücretsiz kotası günlük kullanım için genelde yeterlidir; NVIDIA NIM’in geliştirici kotası da ücretsizdir.
+Hiç ücret ödemek istemiyorsan **Ollama** ile tamamen yerel çalışabilirsin (model indirmek dışında ücret yok).
 TTS ve uzun belgeler daha çok token harcar; Ayarlar’dan daha küçük modellere geçerek maliyeti düşürebilirsin.
 
 **Şifrelerim güvende mi?**
@@ -388,7 +418,9 @@ Evet. Şifreler işletim sistemi kasasında şifrelenir; model yalnızca hesap a
 işlemini yerel araç yapar, şifre hiçbir zaman sohbet metnine yazılmaz.
 
 **İnternet olmadan çalışır mı?**
-Yerel işlemler (dosya, uygulama, güç) çalışır; yapay zekâ yanıtları için internet gerekir.
+Ollama birincil sağlayıcıysa evet: sohbet, araç kullanımı, dosya/uygulama/güç işlemleri çevrimdışı çalışır.
+Bulut sağlayıcılarında (Gemini, OpenAI, Anthropic, NVIDIA, Abacus) yanıtlar için internet gerekir; ses (TTS/STT)
+ve Google Arama destekli gündem de bulut gerektirir.
 
 ---
 
@@ -407,4 +439,4 @@ Yerel işlemler (dosya, uygulama, güç) çalışır; yapay zekâ yanıtları i�
 MIT © Umut Demirel
 
 > Falcon, hiçbir sağlayıcının resmî ürünü değildir. “Gemini” ve “Google AI”, Google LLC’nin; “OpenAI”, “ChatGPT” ve
-> “Whisper”, OpenAI’nin; “Claude”, Anthropic’in; “NVIDIA NIM”, NVIDIA’nın; “Abacus AI”, Abacus.AI’nin ticari markalarıdır.
+> “Whisper”, OpenAI’nin; “Claude”, Anthropic’in; “NVIDIA NIM”, NVIDIA’nın; “Abacus AI”, Abacus.AI’nin; “Ollama”, Ollama’nın ticari markalarıdır.

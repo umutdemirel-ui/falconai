@@ -115,7 +115,7 @@ export function SettingsView() {
               <StatusDot tone={config.hasApiKey ? 'green' : 'red'} /> {config.hasApiKey ? 'Sağlayıcı bağlı' : 'Anahtar gerekli'}
             </p>
             <p className="mt-1 text-[10px] leading-relaxed text-white/20">
-              Gemini, OpenAI, Anthropic, NVIDIA veya Abacus anahtarlarından biri yeterli.
+              Gemini, OpenAI, Anthropic, NVIDIA veya Abacus anahtarlarından biri yeterli; anahtarsız yerel çalışma için Ollama.
             </p>
           </div>
         </div>
@@ -182,8 +182,8 @@ export function SettingsView() {
                 <div className="min-w-0 flex-1">
                   <h3 className="text-[13px] font-semibold text-white/90">Yapay zekâ sağlayıcıları</h3>
                   <p className="text-[10.5px] leading-relaxed text-white/35">
-                    Bir veya birden fazla anahtar ekleyebilirsin. Falcon anahtarı olan sağlayıcıyla çalışır; Gemini ses, görsel analiz ve
-                    gündem için önerilir.
+                    Bir veya birden fazla anahtar ekleyebilirsin. <span className="text-white/55">Ollama</span> anahtar
+                    istemez, bilgisayarında çalışır. Gemini ses, görsel analiz ve gündem için önerilir.
                   </p>
                 </div>
                 <span className="shrink-0 text-[10px] text-white/30">
@@ -658,7 +658,8 @@ export function SettingsView() {
               </h3>
               <p className="text-[11.5px] leading-relaxed text-white/40">
                 Sohbetler, projeler, görevler, hatırlatıcılar ve hafıza yalnızca bu bilgisayarda tutulur. Falcon kendi sunucusuna
-                veri göndermez; yalnızca seçtiğin sağlayıcının API’sine (Gemini, OpenAI, Anthropic, NVIDIA veya Abacus) istek gider.
+                veri göndermez; yalnızca seçtiğin sağlayıcının API’sine (Gemini, OpenAI, Anthropic, NVIDIA, Abacus) istek gider.
+                Yerel Ollama modunda sohbet istekleri bilgisayarından çıkmaz.
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
                 <Button
@@ -755,7 +756,7 @@ export function SettingsView() {
             <Panel className="p-4">
               <h3 className="mb-2 text-[12.5px] font-semibold text-white/85">Nasıl çalışır?</h3>
               <ul className="space-y-1.5 text-[11.5px] leading-relaxed text-white/45">
-                <li className="flex gap-2"><Check size={13} className="mt-0.5 shrink-0 text-emerald-400" /> Akıl yürütme ve araç kullanımı seçtiğin sağlayıcıyla (Gemini, OpenAI, Anthropic, NVIDIA, Abacus) yapılır; ses ve gündem Gemini/OpenAI ile çalışır.</li>
+                <li className="flex gap-2"><Check size={13} className="mt-0.5 shrink-0 text-emerald-400" /> Akıl yürütme ve araç kullanımı seçtiğin sağlayıcıyla (Gemini, OpenAI, Anthropic, NVIDIA, Abacus veya yerel Ollama) yapılır; ses ve gündem Gemini/OpenAI ile çalışır.</li>
                 <li className="flex gap-2"><Check size={13} className="mt-0.5 shrink-0 text-emerald-400" /> Uygulama açma/kapatma, klavye, dosya, terminal ve güç işlemleri yerel olarak (Electron) yürütülür.</li>
                 <li className="flex gap-2"><Check size={13} className="mt-0.5 shrink-0 text-emerald-400" /> Veriler cihazında kalır; şifreler işletim sistemi kasasında saklanır.</li>
                 <li className="flex gap-2"><Check size={13} className="mt-0.5 shrink-0 text-emerald-400" /> Her araç çağrısı denetim kaydına yazılır (Veri ve Gizlilik).</li>

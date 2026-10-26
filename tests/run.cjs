@@ -55,6 +55,7 @@ async function main() {
     'https://api.anthropic.com': '/anthropic',
     'https://integrate.api.nvidia.com': '/nvidia',
     'https://routellm.abacus.ai': '/abacus',
+    'http://127.0.0.1:11434': '/ollama',
   };
   global.fetch = (url, init) => {
     let target = String(url);
@@ -171,8 +172,14 @@ async function main() {
 
   /* --------------------------- Sağlayıcılar -------------------------- */
   const stateList = await invoke('config:provider-states');
-  check('Beş sağlayıcı listeleniyor', stateList.length === 5 && stateList[0].id === 'gemini', stateList.map((p) => p.id).join(','));
-  check('Başlangıçta yalnızca Gemini bağlı', stateList.filter((p) => p.hasKey).length === 1);
+  check('Altı sağlayıcı listeleniyor', stateList.length === 6 && stateList[0].id === 'gemini', stateList.map((p) => p.id).join(','));
+  const ollamaState = stateList.find((p) => p.id === 'ollama');
+  check('Ollama yerel ve anahtarsız listeleniyor', ollamaState?.local === true && ollamaState?.keyRequired === false && ollamaState?.masked === 'anahtar gerekmez');
+  check(
+    'Başlangıçta yalnızca Gemini anahtarlı bağlı',
+    stateList.filter((p) => p.hasKey && !p.local).length === 1,
+    stateList.map((p) => `${p.id}:${p.hasKey}`).join(','),
+  );
   check('Sağlayıcı bilgileri maskeli', stateList[0].masked.includes('••') && !stateList[0].masked.includes('TESTKEY'));
 
   let shortKeyRejected = false;
@@ -230,7 +237,7 @@ async function main() {
   await invoke('config:set-provider-key', 'nvidia', 'nvapi-test-1234567890');
   await invoke('config:set-provider-key', 'abacus', 'abacus-test-1234567890');
   const allStates = await invoke('config:provider-states');
-  check('Beş sağlayıcı da bağlanabildi', allStates.every((p) => p.hasKey), allStates.map((p) => `${p.id}:${p.hasKey}`).join(','));
+  check('Altı sağlayıcı da kullanılabilir', allStates.every((p) => p.hasKey), allStates.map((p) => `${p.id}:${p.hasKey}`).join(','));
   const nvidiaModels = await invoke('config:provider-models', 'nvidia');
   check('NVIDIA modelleri listelendi', nvidiaModels.some((m) => m.startsWith('meta/')), nvidiaModels.join(','));
   const abacusTest = await invoke('config:test-provider', 'abacus');
@@ -241,6 +248,44 @@ async function main() {
   await invoke('config:set-provider-key', 'abacus', '');
   check('Anahtar silinebiliyor', (await invoke('config:provider-states')).find((p) => p.id === 'abacus')?.hasKey === false);
 
+  /* ----------------------------- Ollama ----------------------------- */
+  let localKeyRejected = false;
+  try {
+    await invoke('config:set-provider-key', 'ollama', 'sk-something-1234567890');
+  } catch {
+    localKeyRejected = true;
+  }
+  check('Yerel sağlayıcı anahtar kabul etmiyor', localKeyRejected);
+
+  const ollamaModels = await invoke('config:provider-models', 'ollama');
+  check('Ollama modelleri /api/tags ile listelendi', ollamaModels.includes('llama3.2') && ollamaModels[0] === 'llama3.2', ollamaModels.join(','));
+  const ollamaTest = await invoke('config:test-provider', 'ollama');
+  check('Ollama bağlantı testi geçti', ollamaTest.ok === true && /model/i.test(ollamaTest.message), ollamaTest.message);
+  check('Ollama isteği anahtarsız gitti', requests.some((r) => r.vendor === 'ollama' && !r.headers.authorization));
+
+  await invoke('config:update', { ai: { primary: 'ollama' } });
+  check('Ollama birincil sağlayıcı oldu', (await invoke('config:get')).ai.primary === 'ollama');
+  const localChat = await invoke('chat:send', { text: 'Sistem durumunu kontrol et ve özetle' });
+  const localMsgs = await invoke('chat:messages', localChat.conversationId);
+  check('Ollama ajanı araç çağırdı', localMsgs.some((m) => m.role === 'tool' && m.tool?.status === 'ok'), localMsgs.map((m) => m.role).join(','));
+  check('Ollama anahtarsız yanıt üretti', (localChat.assistantMessage.text ?? '').length > 5, localChat.assistantMessage.text);
+  check('Ollama sohbeti yerel adrese gitti', requests.some((r) => r.vendor === 'ollama' && r.route === '/chat/completions'));
+  check(
+    'Ollama sohbet modeli otomatik seçildi',
+    (await invoke('config:provider-states')).find((p) => p.id === 'ollama')?.model === 'llama3.2',
+  );
+
+  // Sunucu kapalıyken kullanıcıya Türkçe yönlendirme
+  await invoke('config:update', { ai: { providers: { ollama: { baseUrl: 'http://127.0.0.1:9/v1' } } } });
+  const downTest = await invoke('config:test-provider', 'ollama');
+  check(
+    'Ollama kapalıyken anlaşılır yönlendirme veriyor',
+    downTest.ok === false && /ollama serve/i.test(downTest.message),
+    downTest.message,
+  );
+  await invoke('config:update', { ai: { providers: { ollama: { baseUrl: '' } } } });
+  check('Ollama adresi geri alındı', (await invoke('config:provider-states')).find((p) => p.id === 'ollama')?.baseUrl.includes('11434'));
+
   /* --------------------------- OpenAI sesi --------------------------- */
   await invoke('config:update', { ai: { voiceProvider: 'openai' } });
   const oaiSpeech = await invoke('voice:speak', 'Merhaba Umut, OpenAI sesi test ediliyor.');
@@ -249,6 +294,13 @@ async function main() {
   check('Whisper sesi yazıya döktü', oaiTranscript.provider === 'openai' && oaiTranscript.text.length > 3, oaiTranscript.text);
   await invoke('config:update', { ai: { voiceProvider: 'gemini', primary: 'gemini' } });
   check('Gemini birincil sağlayıcıya dönüldü', (await invoke('config:get')).ai.primary === 'gemini');
+
+  /* --------------------- Kota dolunca sağlayıcı yedeği ------------------ */
+  const openAiBefore = requests.filter((r) => r.vendor === 'openai' && r.route === '/chat/completions').length;
+  const quotaChat = await invoke('chat:send', { text: 'Kısa bir özet yaz. #SIMULATE_429#' });
+  const openAiAfter = requests.filter((r) => r.vendor === 'openai' && r.route === '/chat/completions').length;
+  check('Gemini kotası dolunca yedek sağlayıcı devreye girdi', openAiAfter > openAiBefore, `${openAiBefore} → ${openAiAfter}`);
+  check('Yedek sağlayıcı yanıtı kullanıcıya ulaştı', (quotaChat.assistantMessage.text ?? '').length > 5, quotaChat.assistantMessage.text);
 
   /* --------------------------- app:// protokolü ---------------------- */
   const privileged = electron.__test.privilegedSchemes.find((s) => s.scheme === 'app');

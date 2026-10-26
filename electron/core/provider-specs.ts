@@ -75,6 +75,19 @@ export const PROVIDER_SPECS: Record<ProviderId, ProviderSpec> = {
     supportsVision: true,
     note: 'Ücretsiz geliştirici kotası. Model adları “üretici/model” biçimindedir.',
   },
+  ollama: {
+    id: 'ollama',
+    label: 'Ollama (yerel)',
+    kind: 'openai',
+    baseUrl: 'http://127.0.0.1:11434/v1',
+    defaultModel: 'llama3.2',
+    fallbackModels: ['qwen2.5', 'llama3.1', 'gemma3', 'mistral', 'phi4'],
+    keyHint: 'Anahtar gerekmez',
+    docsUrl: 'https://ollama.com/download',
+    supportsVoice: false,
+    supportsVision: false,
+    note: 'Kendi bilgisayarında çalışır: internet, API anahtarı ve ücret gerekmez. “ollama serve” açık olmalı.',
+  },
   abacus: {
     id: 'abacus',
     label: 'Abacus AI (RouteLLM)',
@@ -90,7 +103,12 @@ export const PROVIDER_SPECS: Record<ProviderId, ProviderSpec> = {
   },
 };
 
-export const PROVIDER_ORDER: ProviderId[] = ['gemini', 'openai', 'anthropic', 'nvidia', 'abacus'];
+export const PROVIDER_ORDER: ProviderId[] = ['gemini', 'openai', 'anthropic', 'nvidia', 'abacus', 'ollama'];
+
+/** Yerel, anahtarsız sağlayıcı (Ollama). */
+export function isLocalProvider(id: ProviderId): boolean {
+  return id === 'ollama';
+}
 
 export function providerSpec(id: ProviderId): ProviderSpec {
   return PROVIDER_SPECS[id] ?? PROVIDER_SPECS.gemini;

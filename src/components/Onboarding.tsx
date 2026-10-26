@@ -16,6 +16,7 @@ const PROVIDER_CHOICES: { id: ProviderId; label: string; hint: string; docs: str
   { id: 'anthropic', label: 'Anthropic Claude', hint: 'sk-ant-…', docs: 'https://console.anthropic.com/settings/keys', note: 'Uzun belgeler ve kod için güçlü.' },
   { id: 'nvidia', label: 'NVIDIA NIM', hint: 'nvapi-…', docs: 'https://build.nvidia.com', note: 'Ücretsiz geliştirici kotası.' },
   { id: 'abacus', label: 'Abacus AI (RouteLLM)', hint: 'Abacus API anahtarı', docs: 'https://abacus.ai/help/route-llm/', note: 'Tek anahtarla 150+ model.' },
+  { id: 'ollama', label: 'Ollama (yerel, anahtarsız)', hint: 'Anahtar gerekmez', docs: 'https://ollama.com/download', note: 'Bilgisayarında çalışır; internet ve ücret gerekmez.' },
 ];
 
 export function Onboarding() {
@@ -39,11 +40,16 @@ export function Onboarding() {
   };
 
   const saveAndTest = async () => {
-    if (!key.trim()) return;
+    const local = provider === 'ollama';
+    if (!local && !key.trim()) return;
     setSaving(true);
     setTested(null);
     try {
-      await saveProviderKey(provider, key.trim());
+      if (local) {
+        await saveConfig({ ai: { ...config.ai, primary: 'ollama' } });
+      } else {
+        await saveProviderKey(provider, key.trim());
+      }
       const result = await api.config.testProvider(provider);
       setTested({ ok: result.ok, message: result.message });
       if (result.ok) setStep(2);
@@ -164,7 +170,7 @@ export function Onboarding() {
             <div className="flex h-full flex-col">
               <h3 className="text-[15px] font-semibold text-white">Yapay zekâ anahtarın</h3>
               <p className="mt-1 text-[11.5px] leading-relaxed text-white/40">
-                Falcon Gemini, OpenAI, Anthropic, NVIDIA ve Abacus ile çalışır. Beşinden biri yeterli; anahtar bu cihazda şifreli saklanır.
+                Falcon Gemini, OpenAI, Anthropic, NVIDIA, Abacus ve yerel Ollama ile çalışır. Biri yeterli; anahtarlar bu cihazda şifreli saklanır.
               </p>
               <div className="mt-4">
                 <label className="label mb-1.5 block">Sağlayıcı</label>
@@ -184,22 +190,32 @@ export function Onboarding() {
                 </Select>
                 <p className="mt-1 text-[10.5px] text-white/30">{current.note}</p>
 
-                <label className="label mb-1.5 mt-3 block">API anahtarı</label>
-                <Field
-                  autoFocus
-                  type="password"
-                  value={key}
-                  onChange={(e) => setKey(e.target.value)}
-                  placeholder={current.hint}
-                  className="font-mono text-[12px]"
-                />
-                <button
-                  type="button"
-                  className="mt-2 flex items-center gap-1 text-[10.5px] text-falcon-300/80 hover:text-falcon-200"
-                  onClick={() => void api.system.openUrl(current.docs)}
-                >
-                  <ExternalLink size={10} /> {current.label} anahtarını al
-                </button>
+                {provider === 'ollama' ? (
+                  <div className="mt-3 rounded-lg border border-emerald-400/20 bg-emerald-500/[0.06] px-2.5 py-2 text-[10.5px] leading-relaxed text-white/55">
+                    Ollama’yı <span className="text-white/80">ollama.com/download</span> adresinden kur, terminalde
+                    <span className="font-mono text-white/80"> ollama pull llama3.2 </span>
+                    çalıştır. Falcon modeli otomatik bulur; API anahtarı ve internet gerekmez.
+                  </div>
+                ) : (
+                  <>
+                    <label className="label mb-1.5 mt-3 block">API anahtarı</label>
+                    <Field
+                      autoFocus
+                      type="password"
+                      value={key}
+                      onChange={(e) => setKey(e.target.value)}
+                      placeholder={current.hint}
+                      className="font-mono text-[12px]"
+                    />
+                    <button
+                      type="button"
+                      className="mt-2 flex items-center gap-1 text-[10.5px] text-falcon-300/80 hover:text-falcon-200"
+                      onClick={() => void api.system.openUrl(current.docs)}
+                    >
+                      <ExternalLink size={10} /> {current.label} anahtarını al
+                    </button>
+                  </>
+                )}
               </div>
 
               {tested ? (
@@ -221,8 +237,12 @@ export function Onboarding() {
                   <button type="button" className="text-[10.5px] text-white/25 hover:text-white/50" onClick={() => setStep(2)}>
                     Şimdilik atla
                   </button>
-                  <Button variant="primary" onClick={() => void saveAndTest()} disabled={!key.trim() || saving}>
-                    <KeyRound size={13} /> {saving ? 'Test ediliyor…' : 'Kaydet ve test et'}
+                  <Button
+                    variant="primary"
+                    onClick={() => void saveAndTest()}
+                    disabled={(provider !== 'ollama' && !key.trim()) || saving}
+                  >
+                    <KeyRound size={13} /> {saving ? 'Test ediliyor…' : provider === 'ollama' ? 'Kur ve test et' : 'Kaydet ve test et'}
                   </Button>
                 </div>
               </div>

@@ -54,6 +54,7 @@ const views = [
   { file: 'bilgisayar-araclari.png', nav: 'Bilgisayar Araçları' },
   { file: 'ayarlar.png', nav: 'Ayarlar' },
   { file: 'saglayicilar.png', nav: 'Ayarlar', click: 'API ve Modeller' },
+  { file: 'saglayicilar-ollama.png', nav: 'Ayarlar', click: 'API ve Modeller', scrollTo: 'Ollama (yerel)' },
 ];
 
 const page = await browser.newPage();
@@ -81,6 +82,15 @@ for (const view of views) {
     }, view.click);
     await new Promise((r) => setTimeout(r, 800));
   }
+  if (view.scrollTo) {
+    await page.evaluate((needle) => {
+      const card = [...document.querySelectorAll('div')].find(
+        (el) => el.childElementCount > 0 && el.textContent.trim().startsWith(needle) && el.textContent.length < 600,
+      );
+      card?.scrollIntoView({ block: 'center' });
+    }, view.scrollTo);
+    await new Promise((r) => setTimeout(r, 600));
+  }
   await page.screenshot({ path: path.join(OUT, view.file) });
   console.log(`kaydedildi: docs/screenshots/${view.file}`);
 }
@@ -89,5 +99,14 @@ await page.goto(`${BASE}?onboarding=1`, { waitUntil: 'networkidle0' });
 await new Promise((r) => setTimeout(r, 1200));
 await page.screenshot({ path: path.join(OUT, 'kurulum.png') });
 console.log('kaydedildi: docs/screenshots/kurulum.png');
+
+// Onboarding 2. adım: sağlayıcı seçimi (yerel Ollama dahil)
+await page.evaluate(() => {
+  const btn = [...document.querySelectorAll('button')].find((b) => b.textContent.trim().startsWith('Devam'));
+  btn?.click();
+});
+await new Promise((r) => setTimeout(r, 900));
+await page.screenshot({ path: path.join(OUT, 'kurulum-saglayici.png') });
+console.log('kaydedildi: docs/screenshots/kurulum-saglayici.png');
 
 await browser.close();
