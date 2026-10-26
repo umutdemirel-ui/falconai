@@ -53,6 +53,7 @@ const views = [
   { file: 'sesli-asistan.png', nav: 'Sesli Asistan' },
   { file: 'bilgisayar-araclari.png', nav: 'Bilgisayar Araçları' },
   { file: 'ayarlar.png', nav: 'Ayarlar' },
+  { file: 'saglayicilar.png', nav: 'Ayarlar', click: 'API ve Modeller' },
 ];
 
 const page = await browser.newPage();
@@ -71,6 +72,13 @@ for (const view of views) {
       const btn = [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === label);
       btn?.click();
     }, view.nav);
+    await new Promise((r) => setTimeout(r, 800));
+  }
+  if (view.click) {
+    await page.evaluate((label) => {
+      const btn = [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === label);
+      btn?.click();
+    }, view.click);
     await new Promise((r) => setTimeout(r, 800));
   }
   await page.screenshot({ path: path.join(OUT, view.file) });

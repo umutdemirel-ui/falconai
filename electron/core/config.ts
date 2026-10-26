@@ -1,8 +1,18 @@
-import { app, safeStorage } from 'electron';
+import { app } from 'electron';
 import fs from 'node:fs';
 import { paths } from './paths';
 import { log } from './logger';
-import { DEFAULT_CONFIG, type Config } from '../../shared/types';
+import { decryptSecret, encryptSecret, maskSecret } from './secrets';
+import { PROVIDER_ORDER, providerSpec } from './provider-specs';
+import {
+  DEFAULT_CONFIG,
+  type AiSettings,
+  type Config,
+  type ProviderId,
+  type ProviderState,
+} from '../../shared/types';
+
+type KeyedProvider = Exclude<ProviderId, 'gemini'>;
 
 /**
  * Ayar yönetimi.
@@ -26,7 +36,22 @@ function mergeConfig(base: Config, patch: Partial<Config>): Config {
       blockedCommands: patch.permissions?.blockedCommands ?? base.permissions.blockedCommands,
     },
     agenda: { ...base.agenda, ...(patch.agenda ?? {}) },
+    ai: mergeAi(base.ai, patch.ai),
     updatedAt: Date.now(),
+  };
+}
+
+function mergeAi(base: AiSettings, patch?: Partial<AiSettings>): AiSettings {
+  if (!patch) return base;
+  return {
+    ...base,
+    ...patch,
+    providers: {
+      openai: { ...base.providers.openai, ...(patch.providers?.openai ?? {}) },
+      anthropic: { ...base.providers.anthropic, ...(patch.providers?.anthropic ?? {}) },
+      nvidia: { ...base.providers.nvidia, ...(patch.providers?.nvidia ?? {}) },
+      abacus: { ...base.providers.abacus, ...(patch.providers?.abacus ?? {}) },
+    },
   };
 }
 
@@ -42,7 +67,7 @@ export function loadConfig(): Config {
   // Eski sürümlerden gelen ayarları tamamla
   const defaults = structuredClone(DEFAULT_CONFIG);
   config = mergeConfig(defaults, config);
-  config.hasApiKey = Boolean(config.apiKeyEncrypted);
+  config.hasApiKey = anyProviderKey(config);
   return config;
 }
 
@@ -63,7 +88,7 @@ export function getConfig(): Config {
 export function updateConfig(patch: Partial<Config>): Config {
   const current = loadConfig();
   config = mergeConfig(current, patch);
-  config.hasApiKey = Boolean(config.apiKeyEncrypted);
+  config.hasApiKey = anyProviderKey(config);
   config.updatedAt = Date.now();
   saveConfig();
   return config;
@@ -76,63 +101,131 @@ export function publicConfig(): Config {
   return {
     ...cfg,
     apiKeyEncrypted: null,
-    hasApiKey: Boolean(key),
+    hasApiKey: Boolean(key) || anyProviderKey(cfg),
+    ai: {
+      ...cfg.ai,
+      providers: {
+        openai: { ...cfg.ai.providers.openai, keyEncrypted: null },
+        anthropic: { ...cfg.ai.providers.anthropic, keyEncrypted: null },
+        nvidia: { ...cfg.ai.providers.nvidia, keyEncrypted: null },
+        abacus: { ...cfg.ai.providers.abacus, keyEncrypted: null },
+      },
+    },
+    providerStates: providerStates(cfg),
   };
 }
 
+/* ------------------------------------------------------------------ */
+/* Sağlayıcı anahtarları                                              */
+/* ------------------------------------------------------------------ */
+
+function anyProviderKey(cfg: Config): boolean {
+  if (cfg.apiKeyEncrypted) return true;
+  return Object.values(cfg.ai.providers).some((p) => Boolean(p.keyEncrypted));
+}
+
+/** Gemini dışındaki sağlayıcılardan birine ait anahtar. */
+export function providerKey(id: ProviderId): string {
+  if (id === 'gemini') return getApiKey();
+  const entry = getConfig().ai.providers[id as KeyedProvider];
+  return entry ? decryptSecret(entry.keyEncrypted) : '';
+}
+
+export function hasProviderKey(id: ProviderId): boolean {
+  return Boolean(providerKey(id));
+}
+
+export function anyProviderAvailable(): boolean {
+  return PROVIDER_ORDER.some((id) => hasProviderKey(id));
+}
+
+export function providerStates(cfg: Config = loadConfig()): ProviderState[] {
+  return PROVIDER_ORDER.map((id) => {
+    const spec = providerSpec(id);
+    const entry = id === 'gemini' ? null : cfg.ai.providers[id as KeyedProvider];
+    const key = id === 'gemini' ? getApiKey() : decryptSecret(entry?.keyEncrypted);
+    return {
+      id,
+      label: spec.label,
+      kind: spec.kind,
+      hasKey: Boolean(key),
+      masked: maskSecret(key),
+      model: entry?.model || (id === 'gemini' ? cfg.models.brain : spec.defaultModel),
+      defaultModel: spec.defaultModel,
+      baseUrl: entry?.baseUrl || spec.baseUrl,
+      docsUrl: spec.docsUrl,
+      keyHint: spec.keyHint,
+      supportsVoice: spec.supportsVoice,
+      supportsVision: spec.supportsVision,
+      note: spec.note,
+    };
+  });
+}
+
+function validateKey(key: string): void {
+  if (key.length < 10) {
+    throw new Error('API anahtarı çok kısa görünüyor. Anahtarı eksiksiz yapıştırdığından emin ol.');
+  }
+  if (/\s/.test(key)) {
+    throw new Error('API anahtarı boşluk içeriyor. Yapıştırırken fazladan karakter gelmiş olabilir.');
+  }
+}
+
+/** Gemini anahtarı (eski adıyla tek anahtar) */
 export function setApiKey(rawKey: string): Config {
   const key = rawKey.trim();
   if (!key) {
-    config = { ...loadConfig(), apiKeyEncrypted: null, hasApiKey: false };
+    config = { ...loadConfig(), apiKeyEncrypted: null };
+    config.hasApiKey = anyProviderKey(config);
     saveConfig();
     return publicConfig();
   }
-  if (!/^AIza[0-9A-Za-z_\-]{20,60}$/.test(key) && key.length < 20) {
-    throw new Error(
-      'API anahtarı geçersiz görünüyor. Google AI Studio (aistudio.google.com/apikey) üzerinden aldığınız "AIza..." ile başlayan anahtarı yapıştırın.',
-    );
+  validateKey(key);
+  config = { ...loadConfig(), apiKeyEncrypted: encryptSecret(key) };
+  config.hasApiKey = anyProviderKey(config);
+  saveConfig();
+  return publicConfig();
+}
+
+export function setProviderKey(id: ProviderId, rawKey: string): Config {
+  if (id === 'gemini') return setApiKey(rawKey);
+  const key = rawKey.trim();
+  if (key) validateKey(key);
+  const cfg = loadConfig();
+  const entry = cfg.ai.providers[id as KeyedProvider];
+  if (!entry) throw new Error(`Bilinmeyen sağlayıcı: ${id}`);
+  entry.keyEncrypted = key ? encryptSecret(key) : null;
+  if (!key) entry.model = '';
+  config = { ...cfg, updatedAt: Date.now() };
+  config.hasApiKey = anyProviderKey(config);
+  saveConfig();
+  return publicConfig();
+}
+
+/** Model adını kaydeder (boş = sağlayıcı varsayılanı). */
+export function setProviderModel(id: ProviderId, model: string): Config {
+  const cfg = loadConfig();
+  const clean = model.trim();
+  if (id === 'gemini') {
+    cfg.models.brain = clean || DEFAULT_CONFIG.models.brain;
+    config = { ...cfg, updatedAt: Date.now() };
+    saveConfig();
+    return publicConfig();
   }
-  let stored: string;
-  try {
-    if (safeStorage.isEncryptionAvailable()) {
-      stored = `enc:${safeStorage.encryptString(key).toString('base64')}`;
-    } else {
-      stored = `b64:${Buffer.from(key, 'utf8').toString('base64')}`;
-      log.warn('safeStorage kullanılamıyor; API anahtarı temel kodlama ile saklandı.');
-    }
-  } catch (err) {
-    log.warn('API anahtarı şifrelenemedi', err);
-    stored = `b64:${Buffer.from(key, 'utf8').toString('base64')}`;
-  }
-  config = { ...loadConfig(), apiKeyEncrypted: stored, hasApiKey: true };
+  const entry = cfg.ai.providers[id as KeyedProvider];
+  if (!entry) throw new Error(`Bilinmeyen sağlayıcı: ${id}`);
+  entry.model = clean;
+  config = { ...cfg, updatedAt: Date.now() };
   saveConfig();
   return publicConfig();
 }
 
 export function getApiKey(): string {
-  const cfg = loadConfig();
-  const stored = cfg.apiKeyEncrypted;
-  if (!stored) return '';
-  try {
-    if (stored.startsWith('enc:')) {
-      return safeStorage.decryptString(Buffer.from(stored.slice(4), 'base64'));
-    }
-    if (stored.startsWith('b64:')) {
-      return Buffer.from(stored.slice(4), 'base64').toString('utf8');
-    }
-    // Eski format: düz metin
-    return stored;
-  } catch (err) {
-    log.error('API anahtarı çözülemedi', err);
-    return '';
-  }
+  return decryptSecret(loadConfig().apiKeyEncrypted);
 }
 
 export function maskedApiKey(): string {
-  const key = getApiKey();
-  if (!key) return '';
-  if (key.length <= 8) return '••••';
-  return `${key.slice(0, 4)}••••••••••••${key.slice(-4)}`;
+  return maskSecret(getApiKey());
 }
 
 export function userDataRoots(): string[] {
@@ -155,7 +248,11 @@ export function resetConfig(keepKey = true): Config {
   fresh.onboardingDone = current.onboardingDone;
   if (keepKey) {
     fresh.apiKeyEncrypted = current.apiKeyEncrypted;
-    fresh.hasApiKey = Boolean(current.apiKeyEncrypted);
+    fresh.ai = {
+      ...fresh.ai,
+      providers: structuredClone(current.ai.providers),
+    };
+    fresh.hasApiKey = anyProviderKey(fresh);
   }
   config = fresh;
   saveConfig();

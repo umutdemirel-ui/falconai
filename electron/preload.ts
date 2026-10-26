@@ -45,6 +45,10 @@ const api = {
     test: () => invoke<ApiTestResult>('config:test'),
     models: (force?: boolean) => invoke<ModelInfo[]>('config:models', force),
     reset: () => invoke<Config>('config:reset'),
+    setProviderKey: (provider: string, key: string) => invoke<Config>('config:set-provider-key', provider, key),
+    setProviderModel: (provider: string, model: string) => invoke<Config>('config:set-provider-model', provider, model),
+    testProvider: (provider: string) => invoke<ApiTestResult>('config:test-provider', provider),
+    providerModels: (provider: string) => invoke<string[]>('config:provider-models', provider),
   },
 
   /* ------------------------------ Sohbet ------------------------------- */
@@ -63,9 +67,9 @@ const api = {
   /* -------------------------------- Ses -------------------------------- */
   voice: {
     speak: (text: string, voice?: string) =>
-      invoke<{ audioBase64: string; mime: string; model: string; chars: number; chunks: number }>('voice:speak', text, voice),
+      invoke<{ audioBase64: string; mime: string; model: string; chars: number; chunks: number; provider?: string }>('voice:speak', text, voice),
     transcribe: (audioBase64: string, mime: string, hint?: string) =>
-      invoke<{ text: string }>('voice:transcribe', audioBase64, mime, hint),
+      invoke<{ text: string; provider?: string }>('voice:transcribe', audioBase64, mime, hint),
     askMicPermission: () => invoke<boolean>('voice:mic-permission'),
   },
 

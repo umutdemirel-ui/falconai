@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
   Activity,
   Brain,
@@ -6,8 +6,6 @@ import {
   Check,
   ChevronRight,
   Database,
-  Eye,
-  EyeOff,
   FolderOpen,
   Info,
   KeyRound,
@@ -31,6 +29,7 @@ import { api } from '../lib/api';
 import { useStore } from '../lib/store';
 import { voiceEngine } from '../lib/voice';
 import { Button, Field, IconChip, Modal, Panel, Segmented, Select, Slider, StatusDot, Toggle } from '../components/ui';
+import { ProviderCard } from '../components/ProviderCard';
 import { cn, formatRelative } from '../lib/utils';
 
 const TABS = [
@@ -52,8 +51,9 @@ export function SettingsView() {
   const tab = useStore((s) => s.settingsTab);
   const setTab = useStore((s) => s.setSettingsTab);
   const config = useStore((s) => s.config);
+  const providerStates = config?.providerStates ?? [];
+  const setPrimaryProvider = useStore((s) => s.setPrimaryProvider);
   const saveConfig = useStore((s) => s.saveConfig);
-  const testConnection = useStore((s) => s.testConnection);
   const models = useStore((s) => s.models);
   const systemInfo = useStore((s) => s.systemInfo);
   const agenda = useStore((s) => s.agenda);
@@ -63,20 +63,11 @@ export function SettingsView() {
   const pushToast = useStore((s) => s.pushToast);
   const setView = useStore((s) => s.setView);
 
-  const [apiKey, setApiKey] = useState('');
-  const [showKey, setShowKey] = useState(false);
-  const [masked, setMasked] = useState('');
-  const [testing, setTesting] = useState(false);
   const [credOpen, setCredOpen] = useState(false);
   const [credName, setCredName] = useState('');
   const [credUser, setCredUser] = useState('');
   const [credPass, setCredPass] = useState('');
   const [topic, setTopic] = useState('');
-  const [busy, setBusy] = useState<string | null>(null);
-
-  useEffect(() => {
-    void api.config.maskedKey().then(setMasked);
-  }, [config?.hasApiKey]);
 
   if (!config) return null;
   const v = config.voice;
@@ -85,30 +76,6 @@ export function SettingsView() {
   const modelOptions = (fallback: string[]) => {
     const discovered = models.map((m) => m.name).filter((name) => !/embedding|image|veo|imagen/.test(name));
     return [...new Set([config.models.brain, ...fallback, ...discovered])];
-  };
-
-  const saveKey = async () => {
-    if (!apiKey.trim()) return;
-    setBusy('key');
-    try {
-      await useStore.getState().setApiKey(apiKey.trim());
-      setApiKey('');
-      setMasked(await api.config.maskedKey());
-      pushToast({ kind: 'success', title: 'API anahtarı kaydedildi', body: 'Anahtar şifreli olarak saklanıyor.' });
-    } catch (err) {
-      pushToast({ kind: 'error', title: 'Kaydedilemedi', body: err instanceof Error ? err.message : String(err) });
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  const runTest = async () => {
-    setTesting(true);
-    try {
-      await testConnection();
-    } finally {
-      setTesting(false);
-    }
   };
 
   return (
@@ -145,9 +112,11 @@ export function SettingsView() {
         <div className="mt-auto px-4">
           <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-2.5">
             <p className="flex items-center gap-1.5 text-[10px] text-white/30">
-              <StatusDot tone={config.hasApiKey ? 'green' : 'red'} /> {config.hasApiKey ? 'Gemini bağlı' : 'Anahtar gerekli'}
+              <StatusDot tone={config.hasApiKey ? 'green' : 'red'} /> {config.hasApiKey ? 'Sağlayıcı bağlı' : 'Anahtar gerekli'}
             </p>
-            <p className="mt-1 text-[10px] leading-relaxed text-white/20">Falcon yalnızca Google AI (Gemini) kullanır. Başka sağlayıcı yok.</p>
+            <p className="mt-1 text-[10px] leading-relaxed text-white/20">
+              Gemini, OpenAI, Anthropic, NVIDIA veya Abacus anahtarlarından biri yeterli.
+            </p>
           </div>
         </div>
       </div>
@@ -208,56 +177,77 @@ export function SettingsView() {
             <Panel className="p-4">
               <div className="mb-3 flex items-center gap-2">
                 <IconChip size="sm">
-                  <KeyRound size={13} />
+                  <Sparkles size={13} />
                 </IconChip>
-                <div className="flex-1">
-                  <h3 className="text-[13px] font-semibold text-white/90">Google AI · Gemini API anahtarı</h3>
-                  <p className="text-[10.5px] text-white/35">Falcon yalnızca bu anahtarı kullanır; başka sağlayıcı yoktur.</p>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-[13px] font-semibold text-white/90">Yapay zekâ sağlayıcıları</h3>
+                  <p className="text-[10.5px] leading-relaxed text-white/35">
+                    Bir veya birden fazla anahtar ekleyebilirsin. Falcon anahtarı olan sağlayıcıyla çalışır; Gemini ses, görsel analiz ve
+                    gündem için önerilir.
+                  </p>
                 </div>
-                <StatusDot tone={config.hasApiKey ? 'green' : 'red'} pulse={config.hasApiKey} />
+                <span className="shrink-0 text-[10px] text-white/30">
+                  {providerStates.filter((p) => p.hasKey).length}/{providerStates.length} bağlı
+                </span>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="relative min-w-[240px] flex-1">
-                  <Field
-                    type={showKey ? 'text' : 'password'}
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                    placeholder={config.hasApiKey ? `Kayıtlı: ${masked || 'AIza…'}` : 'AIza… ile başlayan anahtarını yapıştır'}
-                    className="pr-10 font-mono text-[12px]"
-                  />
-                  <button
-                    type="button"
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-white/35 hover:text-white"
-                    onClick={() => setShowKey((s) => !s)}
-                    aria-label="Anahtarı göster"
+              <div className="mb-3 grid gap-2 sm:grid-cols-[1fr_1fr]">
+                <div>
+                  <p className="label mb-1.5">Sohbet sağlayıcısı</p>
+                  <Select
+                    value={config.ai.primary}
+                    onChange={(e) => void setPrimaryProvider(e.target.value)}
+                    className="text-[12px]"
                   >
-                    {showKey ? <EyeOff size={14} /> : <Eye size={14} />}
-                  </button>
+                    {providerStates.map((state) => (
+                      <option key={state.id} value={state.id} disabled={!state.hasKey}>
+                        {state.label}
+                        {state.hasKey ? '' : ' — anahtar yok'}
+                      </option>
+                    ))}
+                  </Select>
+                  <p className="mt-1 text-[10px] text-white/25">Araç kullanımı ve akıl yürütme bu sağlayıcıyla yapılır.</p>
                 </div>
-                <Button variant="primary" onClick={() => void saveKey()} disabled={!apiKey.trim() || busy === 'key'}>
-                  <Save size={13} /> {busy === 'key' ? 'Kaydediliyor…' : 'Kaydet'}
-                </Button>
-                <Button variant="ghost" onClick={() => void runTest()} disabled={!config.hasApiKey || testing}>
-                  <RefreshCw size={13} className={testing ? 'animate-spin' : ''} /> {testing ? 'Test…' : 'Bağlantıyı test et'}
-                </Button>
+                <div>
+                  <p className="label mb-1.5">Yedekleme</p>
+                  <div className="flex items-center justify-between rounded-lg border border-white/[0.06] bg-white/[0.02] px-2.5 py-2">
+                    <div className="min-w-0">
+                      <p className="text-[11px] text-white/70">Hata olursa diğerine geç</p>
+                      <p className="text-[9.5px] text-white/25">Anahtarı olan sağlayıcılar sırayla denenir</p>
+                    </div>
+                    <Toggle
+                      checked={config.ai.fallback}
+                      onChange={(fallback) => void saveConfig({ ai: { ...config.ai, fallback } })}
+                    />
+                  </div>
+                </div>
               </div>
-              <button
-                type="button"
-                className="mt-2 flex items-center gap-1 text-[10.5px] text-falcon-300/80 hover:text-falcon-200"
-                onClick={() => void api.system.openUrl('https://aistudio.google.com/apikey')}
-              >
-                <ExternalLink size={10} /> Ücretsiz anahtar al: aistudio.google.com/apikey
-              </button>
-              <p className="mt-2 text-[10.5px] leading-relaxed text-white/25">
-                Anahtar işletim sisteminin güvenli deposuyla (DPAPI / Keychain) şifrelenir, diske düz metin yazılmaz ve hiçbir sunucuya gönderilmez.
+
+              <div className="space-y-2">
+                {providerStates.map((state) => (
+                  <ProviderCard
+                    key={state.id}
+                    state={state}
+                    primary={config.ai.primary === state.id}
+                    onPrimary={() => void setPrimaryProvider(state.id)}
+                  />
+                ))}
+              </div>
+
+              <p className="mt-2.5 flex items-start gap-1.5 text-[10px] leading-relaxed text-white/25">
+                <Shield size={11} className="mt-0.5 shrink-0" />
+                Anahtarlar işletim sisteminin güvenli deposuyla (DPAPI / Keychain) şifrelenir, diske düz metin yazılmaz ve hiçbir sunucuya
+                gönderilmez.
               </p>
             </Panel>
 
             <Panel className="p-4">
               <h3 className="mb-3 flex items-center gap-2 text-[13px] font-semibold text-white/90">
-                <Brain size={14} className="text-falcon-400" /> Model seçimi
+                <Brain size={14} className="text-falcon-400" /> Gemini model eşlemesi
               </h3>
+              <p className="mb-3 -mt-1 text-[10.5px] leading-relaxed text-white/30">
+                Gemini anahtarı varsa hızlı işler, görsel/PDF analizi, ses ve gündem için bu modeller kullanılır.
+              </p>
               <div className="grid gap-3 sm:grid-cols-2">
                 {[
                   { key: 'brain' as const, label: 'Ana model (beyin)', hint: 'Araç kullanımı, akıl yürütme', list: modelOptions(BRAIN_MODELS) },
@@ -667,8 +657,8 @@ export function SettingsView() {
                 <Database size={14} className="text-falcon-400" /> Verilerin
               </h3>
               <p className="text-[11.5px] leading-relaxed text-white/40">
-                Sohbetler, projeler, görevler, hatırlatıcılar ve hafıza yalnızca bu bilgisayarda tutulur. Falcon hiçbir veriyi
-                kendi sunucusuna göndermez; yalnızca Gemini API çağrıları yapılır.
+                Sohbetler, projeler, görevler, hatırlatıcılar ve hafıza yalnızca bu bilgisayarda tutulur. Falcon kendi sunucusuna
+                veri göndermez; yalnızca seçtiğin sağlayıcının API’sine (Gemini, OpenAI, Anthropic, NVIDIA veya Abacus) istek gider.
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
                 <Button
@@ -765,7 +755,7 @@ export function SettingsView() {
             <Panel className="p-4">
               <h3 className="mb-2 text-[12.5px] font-semibold text-white/85">Nasıl çalışır?</h3>
               <ul className="space-y-1.5 text-[11.5px] leading-relaxed text-white/45">
-                <li className="flex gap-2"><Check size={13} className="mt-0.5 shrink-0 text-emerald-400" /> Tüm akıl yürütme, görsel analiz, ses ve arama Google Gemini API ile yapılır.</li>
+                <li className="flex gap-2"><Check size={13} className="mt-0.5 shrink-0 text-emerald-400" /> Akıl yürütme ve araç kullanımı seçtiğin sağlayıcıyla (Gemini, OpenAI, Anthropic, NVIDIA, Abacus) yapılır; ses ve gündem Gemini/OpenAI ile çalışır.</li>
                 <li className="flex gap-2"><Check size={13} className="mt-0.5 shrink-0 text-emerald-400" /> Uygulama açma/kapatma, klavye, dosya, terminal ve güç işlemleri yerel olarak (Electron) yürütülür.</li>
                 <li className="flex gap-2"><Check size={13} className="mt-0.5 shrink-0 text-emerald-400" /> Veriler cihazında kalır; şifreler işletim sistemi kasasında saklanır.</li>
                 <li className="flex gap-2"><Check size={13} className="mt-0.5 shrink-0 text-emerald-400" /> Her araç çağrısı denetim kaydına yazılır (Veri ve Gizlilik).</li>

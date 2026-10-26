@@ -14,6 +14,7 @@ import {
   type FileRecord,
   type MemoryEntry,
   type ModelInfo,
+  type ProviderState,
   type Project,
   type Reminder,
   type RunningProcess,
@@ -39,6 +40,10 @@ export interface FalconApi {
     test(): Promise<ApiTestResult>;
     models(force?: boolean): Promise<ModelInfo[]>;
     reset(): Promise<Config>;
+    setProviderKey(provider: string, key: string): Promise<Config>;
+    setProviderModel(provider: string, model: string): Promise<Config>;
+    testProvider(provider: string): Promise<ApiTestResult>;
+    providerModels(provider: string): Promise<string[]>;
   };
   chat: {
     send(request: ChatRequest): Promise<{ conversationId: string; assistantMessage: ChatMessage; spokenText: string }>;
@@ -52,8 +57,11 @@ export interface FalconApi {
     export(id: string): Promise<string | null>;
   };
   voice: {
-    speak(text: string, voice?: string): Promise<{ audioBase64: string; mime: string; model: string; chars: number; chunks: number }>;
-    transcribe(audioBase64: string, mime: string, hint?: string): Promise<{ text: string }>;
+    speak(
+      text: string,
+      voice?: string,
+    ): Promise<{ audioBase64: string; mime: string; model: string; chars: number; chunks: number; provider?: string }>;
+    transcribe(audioBase64: string, mime: string, hint?: string): Promise<{ text: string; provider?: string }>;
     askMicPermission(): Promise<boolean>;
   };
   system: {
@@ -239,6 +247,30 @@ const demoInfo: SystemInfo = {
 function createDemoApi(): FalconApi {
   const previewOnboarding =
     typeof location !== 'undefined' && /[?&]onboarding=1/.test(location.search);
+  const demoProvider = (
+    id: ProviderState['id'],
+    label: string,
+    kind: ProviderState['kind'],
+    hasKey: boolean,
+    model: string,
+    defaultModel: string,
+    note: string,
+  ): ProviderState => ({
+    id,
+    label,
+    kind,
+    hasKey,
+    masked: hasKey ? `${id === 'openai' ? 'sk-p' : id === 'anthropic' ? 'sk-ant-' : id === 'nvidia' ? 'nvapi-' : id === 'abacus' ? 'abacus-' : 'AIza'}••••••••••••9f2c` : '',
+    model,
+    defaultModel,
+    baseUrl: '',
+    docsUrl: 'https://aistudio.google.com/apikey',
+    keyHint: id === 'openai' ? 'sk-…' : id === 'nvidia' ? 'nvapi-…' : id === 'anthropic' ? 'sk-ant-…' : id === 'abacus' ? 'Abacus API anahtarı' : 'AIza…',
+    supportsVoice: id === 'gemini' || id === 'openai',
+    supportsVision: true,
+    note,
+  });
+
   let config: Config = {
     ...structuredClone(DEFAULT_CONFIG),
     userName: 'Umut',
@@ -246,6 +278,13 @@ function createDemoApi(): FalconApi {
     onboardingDone: !previewOnboarding,
     createdAt: now,
     updatedAt: now,
+    providerStates: [
+      demoProvider('gemini', 'Google Gemini', 'gemini', !previewOnboarding, 'gemini-3.8-flash', 'gemini-3.8-flash', 'Ses, görsel analiz ve gündem için önerilir.'),
+      demoProvider('openai', 'OpenAI', 'openai', false, 'gpt-5.6', 'gpt-5.6', 'Sohbet + araçlar + Whisper ile ses yazıya dökme.'),
+      demoProvider('anthropic', 'Anthropic Claude', 'anthropic', false, 'claude-sonnet-5-5', 'claude-sonnet-5-5', 'Uzun belgeler ve kod için güçlü.'),
+      demoProvider('nvidia', 'NVIDIA NIM', 'openai', false, 'meta/llama-3.3-70b-instruct', 'meta/llama-3.3-70b-instruct', 'Ücretsiz geliştirici kotası.'),
+      demoProvider('abacus', 'Abacus AI (RouteLLM)', 'openai', false, 'route-llm', 'route-llm', 'Tek anahtarla 150+ model.'),
+    ],
   };
   const listeners = new Set<(e: ChatEvent) => void>();
   const confirmListeners = new Set<(r: ToolConfirmation) => void>();
@@ -284,10 +323,59 @@ function createDemoApi(): FalconApi {
         return config;
       },
       setApiKey: async (key) => {
-        config = { ...config, hasApiKey: Boolean(key), onboardingDone: true };
+        config = {
+          ...config,
+          hasApiKey: Boolean(key),
+          onboardingDone: true,
+          providerStates: (config.providerStates ?? []).map((p) =>
+            p.id === 'gemini' ? { ...p, hasKey: Boolean(key), masked: key ? `${key.slice(0, 4)}••••${key.slice(-4)}` : '' } : p,
+          ),
+        };
         return config;
       },
       maskedKey: async () => 'AIza••••••••••••9f2c',
+      setProviderKey: async (provider, key) => {
+        const entry = { keyEncrypted: null, model: '', baseUrl: '' };
+        config = {
+          ...config,
+          hasApiKey: config.hasApiKey || Boolean(key),
+          ai: {
+            ...config.ai,
+            providers: {
+              ...config.ai.providers,
+              [provider]: { ...(config.ai.providers as Record<string, typeof entry>)[provider], ...entry },
+            },
+          },
+          providerStates: (config.providerStates ?? []).map((p) =>
+            p.id === provider ? { ...p, hasKey: Boolean(key), masked: key ? `${key.slice(0, 4)}••••${key.slice(-4)}` : '' } : p,
+          ),
+        };
+        emit({ type: 'config', config });
+        return config;
+      },
+      setProviderModel: async (provider, model) => {
+        config = {
+          ...config,
+          providerStates: (config.providerStates ?? []).map((p) => (p.id === provider ? { ...p, model } : p)),
+        };
+        emit({ type: 'config', config });
+        return config;
+      },
+      testProvider: async (provider) => ({
+        ok: true,
+        message: `Demo modunda ${provider} bağlantısı doğrulanamaz; masaüstü uygulamasında gerçek test yapılır.`,
+        latencyMs: 210,
+      }),
+      providerModels: async (provider) =>
+        provider === 'gemini'
+          ? ['gemini-3.8-flash', 'gemini-3.5-flash-lite', 'gemini-3.8-flash-tts']
+          : provider === 'openai'
+            ? ['gpt-5.6', 'gpt-5.5', 'gpt-5.4-mini']
+            : provider === 'anthropic'
+              ? ['claude-sonnet-5-5', 'claude-opus-5-5', 'claude-haiku-5-5']
+              : provider === 'nvidia'
+                ? ['meta/llama-3.3-70b-instruct', 'nvidia/nemotron-3-super-120b-a12b']
+                : ['route-llm', 'gpt-6-astra', 'claude-sonnet-5'],
       test: async () => ({ ok: true, message: 'Demo modunda bağlantı doğrulanamaz. Masaüstü uygulamasında gerçek test yapılır.', model: config.models.brain, latencyMs: 240 }),
       models: async () => [
         { name: 'gemini-3.8-flash', displayName: 'Gemini 3.8 Flash', description: '', inputTokenLimit: 1000000, outputTokenLimit: 65536, methods: ['generateContent'] },
@@ -353,7 +441,7 @@ function createDemoApi(): FalconApi {
       speak: async () => {
         throw new Error('Tarayıcı önizlemesinde Gemini sesi kullanılamıyor; sistem sesi deneniyor.');
       },
-      transcribe: async () => ({ text: 'Chrome’u aç ve bugünün gündemini özetle' }),
+      transcribe: async () => ({ text: 'Chrome’u aç ve bugünün gündemini özetle', provider: 'gemini' }),
       askMicPermission: async () => true,
     },
     system: {

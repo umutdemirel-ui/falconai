@@ -15,7 +15,7 @@ import type {
 
 /**
  * Yerel veri koleksiyonları. Tümü kullanıcı profilinde JSON olarak saklanır;
- * harici bir sunucuya hiçbir veri gönderilmez (yalnızca Gemini istekleri hariç).
+ * harici bir sunucuya hiçbir veri gönderilmez (yalnızca seçili sağlayıcının API istekleri hariç).
  */
 
 /* ------------------------------- Sohbet ------------------------------- */

@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { documentsDir } from '../core/paths';
 import { getConfig } from '../core/config';
-import { generate } from '../core/gemini';
+import { generateChat } from '../core/llm';
 import { extractText, resolvePath, safeFileName, writeTextFile, mimeFor } from './documents';
 import { addFileRecord } from '../core/db';
 import { assertPathAllowed } from '../core/security';
@@ -49,7 +49,7 @@ export async function translateFile(
   const chunks = splitIntoChunks(extracted.text);
   const translated: string[] = [];
   for (let i = 0; i < chunks.length; i++) {
-    const res = await generate({
+    const res = await generateChat({
       model: cfg.models.fast,
       purpose: 'fast',
       temperature: 0.2,

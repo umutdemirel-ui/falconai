@@ -2,7 +2,8 @@ import { getConfig } from '../core/config';
 import { log } from '../core/logger';
 import { uid } from '../core/store';
 import { broadcast, emitState, emitToast } from '../core/bus';
-import { generate, streamGenerate, type GeminiContent, type GeminiPart } from '../core/gemini';
+import { type GeminiContent, type GeminiPart } from '../core/gemini';
+import { generateChat, streamChat } from '../core/llm';
 import {
   appendMessage,
   addFileRecord,
@@ -19,7 +20,7 @@ import { getSystemInfo } from './system';
 import { extractPdfText, extractText, mimeFor, resolvePath } from './documents';
 import { listAgentSpecs } from './delegation';
 import { buildDigest, digestToSpeech } from './agenda';
-import { getApiKey } from '../core/config';
+import { anyProviderAvailable } from '../core/config';
 import type {
   AgentName,
   AgentState,
@@ -260,9 +261,9 @@ async function prepareAttachments(attachments: Attachment[] = []): Promise<Attac
 
 async function suggestTitle(conversationId: string, userText: string, assistantText: string): Promise<void> {
   const cfg = getConfig();
-  if (!getApiKey()) return;
+  if (!anyProviderAvailable()) return;
   try {
-    const res = await generate({
+    const res = await generateChat({
       model: cfg.models.fast,
       purpose: 'fast',
       temperature: 0.3,
@@ -306,9 +307,9 @@ export interface ChatOutcome {
 export async function chat(request: ChatRequest): Promise<ChatOutcome> {
   clearGlobalStop();
   const cfg = getConfig();
-  if (!getApiKey()) {
+  if (!anyProviderAvailable()) {
     throw new Error(
-      'API anahtarı ayarlanmamış. Ayarlar → API ve Modeller bölümünden Google AI Studio anahtarınızı girin.',
+      'Hiçbir yapay zekâ anahtarı ayarlanmamış. Ayarlar → API ve Modeller bölümünden Google, OpenAI, Anthropic, NVIDIA veya Abacus anahtarı ekleyin.',
     );
   }
 
@@ -368,7 +369,7 @@ export async function chat(request: ChatRequest): Promise<ChatOutcome> {
       const calls: { name: string; args: Record<string, unknown> }[] = [];
       let finishReason = '';
 
-      for await (const chunk of streamGenerate({
+      for await (const chunk of streamChat({
         model: cfg.models.brain,
         purpose: 'brain',
         systemInstruction: systemPrompt,

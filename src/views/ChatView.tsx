@@ -32,6 +32,7 @@ export function ChatView() {
   const busy = useStore((s) => s.busy);
   const setDraft = useStore((s) => s.setDraft);
   const setView = useStore((s) => s.setView);
+  const setSettingsTab = useStore((s) => s.setSettingsTab);
   const newChat = useStore((s) => s.newChat);
   const pushToast = useStore((s) => s.pushToast);
   const voice = useStore((s) => s.voice);
@@ -107,9 +108,16 @@ export function ChatView() {
         <div className="mx-5 mt-3 flex items-center gap-2.5 rounded-xl border border-falcon-500/40 bg-falcon-600/12 px-3.5 py-2.5">
           <KeyRound size={15} className="shrink-0 text-falcon-300" />
           <p className="min-w-0 flex-1 text-[11.5px] leading-relaxed text-white/70">
-            Falcon’un çalışması için Google AI (Gemini) API anahtarı gerekiyor. Ücretsiz anahtarını ayarlara gir, hemen başlayalım.
+            Falcon’un çalışması için bir yapay zekâ API anahtarı gerekiyor: Gemini, OpenAI, Anthropic, NVIDIA veya Abacus. Hangisini istersen ekle.
           </p>
-          <Button size="sm" variant="primary" onClick={() => setView('settings')}>
+          <Button
+            size="sm"
+            variant="primary"
+            onClick={() => {
+              setSettingsTab('ai');
+              setView('settings');
+            }}
+          >
             Anahtar ekle
           </Button>
         </div>
