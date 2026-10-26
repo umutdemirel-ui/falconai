@@ -118,12 +118,10 @@ export async function delegate(
   ];
 
   let finalText = '';
-  let steps = 0;
   let ok = true;
 
   try {
     for (let i = 0; i < spec.maxSteps; i++) {
-      steps = i + 1;
       let text = '';
       const calls: { name: string; args: Record<string, unknown> }[] = [];
       let finish = '';

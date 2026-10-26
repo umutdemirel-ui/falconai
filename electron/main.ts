@@ -75,7 +75,7 @@ import { syncModels } from './services/models';
 import { getTool } from './services/tools';
 import { startScheduler, stopScheduler, runAgendaNow } from './services/scheduler';
 import { listModels, testConnection } from './core/gemini';
-import type { Attachment, ChatMessage, Config } from '../shared/types';
+import type { Attachment, Config } from '../shared/types';
 
 /* ------------------------------------------------------------------ */
 /* Uygulama kurulumu                                                   */

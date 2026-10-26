@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { AudioLines, Mic, Play, Radio, Settings2, Sparkles, Volume2, Waves } from 'lucide-react';
+import { AudioLines, Mic, Radio, Settings2, Sparkles, Volume2, Waves } from 'lucide-react';
 import { useStore } from '../lib/store';
 import { voiceEngine } from '../lib/voice';
 import { Button, Field, IconChip, Panel, Segmented, Select, Slider, Toggle } from '../components/ui';
@@ -24,7 +24,6 @@ export function VoiceView() {
   const voice = useStore((s) => s.voice);
   const busy = useStore((s) => s.busy);
   const saveConfig = useStore((s) => s.saveConfig);
-  const pushToast = useStore((s) => s.pushToast);
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [systemVoices, setSystemVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [previewing, setPreviewing] = useState(false);

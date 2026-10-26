@@ -18,7 +18,7 @@ import { Button, IconChip, StatusDot } from '../components/ui';
 import { api } from '../lib/api';
 import { useStore } from '../lib/store';
 import { voiceEngine } from '../lib/voice';
-import { cn, greeting } from '../lib/utils';
+import { greeting } from '../lib/utils';
 
 const CHIPS = [
   { icon: FileSearch, label: 'Bir dosyayı analiz et', draft: 'Bu dosyayı analiz et ve özetle: ' },

@@ -119,7 +119,7 @@ function describeError(status: number, body: string, model?: string): GeminiErro
         model,
         false,
         false,
-        'API anahtarı geçersiz. Ayarlar → Yapay Zekâ Sağlayıcıları bölümüne Google AI Studio anahtarınızı yeniden girin.',
+        'API anahtarı geçersiz. Ayarlar → API ve Modeller bölümüne Google AI Studio anahtarınızı yeniden girin.',
       );
     }
     return new GeminiError(
@@ -289,7 +289,7 @@ function requireKey(): string {
   const key = getApiKey();
   if (!key) {
     throw new GeminiError('API anahtarı yok', 401, 'NO_API_KEY', undefined, false, false,
-      'Başlamak için Ayarlar → Yapay Zekâ Sağlayıcıları bölümünden Google AI Studio API anahtarınızı girin. Falcon yalnızca Google AI (Gemini) kullanır.');
+      'Başlamak için Ayarlar → API ve Modeller bölümünden Google AI Studio API anahtarınızı girin. Falcon yalnızca Google AI (Gemini) kullanır.');
   }
   return key;
 }
@@ -689,12 +689,19 @@ export async function synthesizeSpeech(
       const inline = parts.find((p) => p.inlineData?.data)?.inlineData;
       if (inline?.data) {
         let buffer: Buffer = Buffer.from(inline.data, 'base64');
+        const declared = inline.mimeType ?? '';
         const isWav = buffer.subarray(0, 4).toString('ascii') === 'RIFF';
-        const mime = inline.mimeType ?? 'audio/L16;codec=pcm;rate=24000';
-        if (!isWav) buffer = pcmToWav(buffer, 24000, 1);
+        // Yalnızca ham PCM verisini WAV'a sar; mp3/ogg gibi hazır kapları bozmayalım.
+        const looksPcm = !declared || /l16|pcm|raw/i.test(declared);
+        let mime = 'audio/wav';
+        if (!isWav && looksPcm) {
+          buffer = pcmToWav(buffer, 24000, 1);
+        } else if (!isWav) {
+          mime = declared || 'audio/wav';
+        }
         const result: TtsResult = {
           audioBase64: buffer.toString('base64'),
-          mime: isWav ? 'audio/wav' : 'audio/wav',
+          mime,
           model,
         };
         ttsCache.set(cacheKey, result);

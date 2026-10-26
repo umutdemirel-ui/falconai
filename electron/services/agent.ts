@@ -1,4 +1,3 @@
-import path from 'node:path';
 import { getConfig } from '../core/config';
 import { log } from '../core/logger';
 import { uid } from '../core/store';
@@ -15,7 +14,7 @@ import {
   newConversation,
   renameConversation,
 } from '../core/db';
-import { executeTool, toolDefinitions, toolIcon, toolLabel, toolRisk } from './tools';
+import { executeTool, toolDefinitions, toolLabel, toolRisk } from './tools';
 import { getSystemInfo } from './system';
 import { extractPdfText, extractText, mimeFor, resolvePath } from './documents';
 import { listAgentSpecs } from './delegation';
@@ -221,14 +220,6 @@ function historyToContents(conversationId: string, incoming: ChatMessage): Gemin
   return contents;
 }
 
-function attachmentParts(attachments: Attachment[]): GeminiPart[] {
-  const parts: GeminiPart[] = [];
-  for (const att of attachments) {
-    if (att.base64) parts.push({ inlineData: { mimeType: att.mime, data: att.base64 } });
-  }
-  return parts;
-}
-
 async function prepareAttachments(attachments: Attachment[] = []): Promise<Attachment[]> {
   const out: Attachment[] = [];
   for (const att of attachments) {
@@ -317,7 +308,7 @@ export async function chat(request: ChatRequest): Promise<ChatOutcome> {
   const cfg = getConfig();
   if (!getApiKey()) {
     throw new Error(
-      'API anahtarı ayarlanmamış. Ayarlar → Yapay Zekâ Sağlayıcıları bölümünden Google AI Studio anahtarınızı girin.',
+      'API anahtarı ayarlanmamış. Ayarlar → API ve Modeller bölümünden Google AI Studio anahtarınızı girin.',
     );
   }
 

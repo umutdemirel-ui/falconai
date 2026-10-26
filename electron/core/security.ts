@@ -42,7 +42,7 @@ export function permissions(): PermissionSettings {
 export function assertPathAllowed(target: string, opts: { write?: boolean } = {}): string {
   const cfg = getConfig();
   if (!cfg.permissions.fileAccess) {
-    throw new Error('Dosya erişimi izni kapalı. Ayarlar → İzin Durumu bölümünden açabilirsiniz.');
+    throw new Error('Dosya erişimi izni kapalı. Ayarlar → İzinler ve Güvenlik bölümünden açabilirsiniz.');
   }
   const resolved = path.resolve(expandHome(target));
   const roots = cfg.permissions.allowedRoots.length
@@ -64,11 +64,11 @@ export function assertPathAllowed(target: string, opts: { write?: boolean } = {}
       const readAllowed = ['/tmp', '/var/tmp', os.tmpdir()];
       if (readAllowed.some((p) => resolved.startsWith(p))) return resolved;
       throw new Error(
-        `Güvenlik: "${resolved}" izin verilen klasörlerin dışında. Ayarlar → İzinler bölümünden bu klasörü ekleyin.`,
+        `Güvenlik: "${resolved}" izin verilen klasörlerin dışında. Ayarlar → İzinler ve Güvenlik bölümünden bu klasörü ekleyin.`,
       );
     }
     throw new Error(
-      `Güvenlik: "${resolved}" izin verilen klasörlerin dışında. Ayarlar → İzinler bölümünden bu klasörü ekleyin.`,
+      `Güvenlik: "${resolved}" izin verilen klasörlerin dışında. Ayarlar → İzinler ve Güvenlik bölümünden bu klasörü ekleyin.`,
     );
   }
   return resolved;
@@ -86,7 +86,7 @@ export function expandHome(p: string): string {
 export function assertCommandAllowed(command: string): void {
   const cfg = getConfig();
   if (!cfg.permissions.terminal) {
-    throw new Error('Terminal izni kapalı. Ayarlar → İzinler bölümünden açabilirsiniz.');
+    throw new Error('Terminal izni kapalı. Ayarlar → İzinler ve Güvenlik bölümünden açabilirsiniz.');
   }
   for (const pattern of cfg.permissions.blockedCommands) {
     try {

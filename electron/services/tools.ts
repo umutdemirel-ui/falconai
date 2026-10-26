@@ -1208,7 +1208,7 @@ function capabilityError(tool: FalconTool): string {
     camera: 'Kamera',
     microphone: 'Mikrofon',
   };
-  return `${labels[tool.capability] ?? tool.capability} izni kapalı. Ayarlar → İzin Durumu bölümünden açabilirsiniz.`;
+  return `${labels[tool.capability] ?? tool.capability} izni kapalı. Ayarlar → İzinler ve Güvenlik bölümünden açabilirsiniz.`;
 }
 
 export async function executeTool(

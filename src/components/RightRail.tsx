@@ -14,7 +14,6 @@ import {
   FileText,
   MonitorPlay,
 } from 'lucide-react';
-import { api } from '../lib/api';
 import { useStore } from '../lib/store';
 import { Button, CardHeader, IconChip, KeyValue, Panel, Select, StatusDot, Toggle } from './ui';
 import { cn, formatRelative, greeting } from '../lib/utils';

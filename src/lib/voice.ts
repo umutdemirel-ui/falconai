@@ -199,11 +199,9 @@ type TranscriptHandler = (text: string, meta: { voice: boolean }) => void;
 class VoiceEngine {
   private recorder = new WavRecorder();
   private audio: HTMLAudioElement | null = null;
-  private audioCtx: AudioContext | null = null;
   private stopRequested = false;
   private autoStopTimer: number | null = null;
   private transcriptHandler: TranscriptHandler | null = null;
-  private speakingText: string | null = null;
 
   onTranscript(cb: TranscriptHandler): void {
     this.transcriptHandler = cb;
@@ -384,7 +382,6 @@ class VoiceEngine {
     }
     this.stopSpeaking();
     this.stopRequested = false;
-    this.speakingText = trimmed;
     store.setVoice({ speaking: true });
 
     if (cfg.voice.engine === 'system') {
@@ -415,7 +412,6 @@ class VoiceEngine {
   private afterSpeak(): void {
     const store = useStore.getState();
     store.setVoice({ speaking: false });
-    this.speakingText = null;
     const cfg = store.config;
     if (cfg?.voice.continuousListening && !this.stopRequested && !this.recorder.isRunning()) {
       setTimeout(() => void this.startListening('continuous'), 350);

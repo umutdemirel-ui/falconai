@@ -181,7 +181,7 @@ async function collectSystemInfo(): Promise<SystemInfo> {
     node: process.versions.node,
     chrome: process.versions.chrome,
     battery,
-    displays: screen.getAllDisplays().map((d, i) => ({
+    displays: screen.getAllDisplays().map((d) => ({
       width: d.size.width,
       height: d.size.height,
       primary: d.id === screen.getPrimaryDisplay().id,
@@ -203,7 +203,7 @@ export type PowerAction = 'shutdown' | 'restart' | 'sleep' | 'lock' | 'logout' |
 
 export async function powerAction(action: PowerAction, delaySeconds = 30): Promise<string> {
   const p = getConfig().permissions;
-  if (!p.power) throw new Error('Güç işlemleri izni kapalı. Ayarlar → İzin Durumu bölümünden açabilirsiniz.');
+  if (!p.power) throw new Error('Güç işlemleri izni kapalı. Ayarlar → İzinler ve Güvenlik bölümünden açabilirsiniz.');
 
   if (isWindows()) {
     switch (action) {
