@@ -1,0 +1,25 @@
+# Bağımlılıklar
+node_modules/
+.pnpm-store/
+
+# Derleme çıktıları
+dist/
+dist-electron/
+release/
+build/icon.icns
+build/icon.ico
+
+# Geliştirme
+.DS_Store
+Thumbs.db
+*.log
+npm-debug.log*
+.vscode/
+.idea/
+.tmp/
+.env
+.env.local
+
+# Yerel veriler
+falcon-data/
+*.falcon-backup.json
