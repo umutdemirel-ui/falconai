@@ -19,7 +19,7 @@ import {
 import { assertCommandAllowed, assertPathAllowed, expandHome, isMac, isWindows, redact, requestConfirmation } from '../core/security';
 import { documentsDir, downloadsDir, homeDir } from '../core/paths';
 import { getCredential, listCredentials, saveCredential, deleteCredential } from '../core/vault';
-import { generate, type FunctionDeclaration } from '../core/gemini';
+import { generateChat, type FunctionDeclaration } from '../core/llm';
 import {
   closeApp,
   listApps,
@@ -523,9 +523,10 @@ const TOOLS: FalconTool[] = [
 
       if (isImage(file) || mime === 'application/pdf' || mime.startsWith('audio/') || mime.startsWith('video/')) {
         const { data } = readBase64(file, 18);
-        const res = await generate({
+        const res = await generateChat({
           model: cfg.models.vision,
           purpose: 'vision',
+          requireVision: true,
           temperature: 0.3,
           maxOutputTokens: 4096,
           signal: ctx.signal,
@@ -545,7 +546,7 @@ const TOOLS: FalconTool[] = [
 
       const extracted = extractText(file, 90000);
       if (!extracted.text) return { ok: false, summary: 'Belgeden metin çıkarılamadı. Görsel tabanlı olabilir; PDF için analiz yine de denenebilir.' };
-      const res = await generate({
+      const res = await generateChat({
         model: cfg.models.brain,
         purpose: 'brain',
         temperature: 0.3,
@@ -728,9 +729,10 @@ const TOOLS: FalconTool[] = [
         return { ok: true, summary: `Ekran görüntüsü alındı: ${shot.file}`, data: { file: shot.file, width: shot.width, height: shot.height } };
       }
       const cfg = getConfig();
-      const res = await generate({
+      const res = await generateChat({
         model: cfg.models.vision,
         purpose: 'vision',
+        requireVision: true,
         temperature: 0.2,
         maxOutputTokens: 2048,
         signal: ctx.signal,

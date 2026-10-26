@@ -1,7 +1,7 @@
 import { getConfig } from '../core/config';
 import { log } from '../core/logger';
 import { saveDelegation } from '../core/db';
-import { streamGenerate, type FunctionDeclaration } from '../core/gemini';
+import { streamChat, type FunctionDeclaration } from '../core/llm';
 import type { AgentName, DelegationRecord, ToolResult } from '../../shared/types';
 
 /**
@@ -126,7 +126,7 @@ export async function delegate(
       const calls: { name: string; args: Record<string, unknown> }[] = [];
       let finish = '';
 
-      for await (const chunk of streamGenerate({
+      for await (const chunk of streamChat({
         model: cfg.models.brain,
         purpose: 'brain',
         systemInstruction: spec.systemPrompt,

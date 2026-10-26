@@ -34,6 +34,7 @@ export function RightRail() {
   const setView = useStore((s) => s.setView);
   const setSettingsTab = useStore((s) => s.setSettingsTab);
   const saveConfig = useStore((s) => s.saveConfig);
+  const setProviderModel = useStore((s) => s.setProviderModel);
   const testConnection = useStore((s) => s.testConnection);
   const agenda = useStore((s) => s.agenda);
   const runAgenda = useStore((s) => s.runAgenda);
@@ -45,6 +46,16 @@ export function RightRail() {
   const modelOptions = (models.length ? models.map((m) => m.name) : FALLBACK_MODELS).filter(
     (name) => !/tts|embedding|image|veo|imagen/.test(name),
   );
+
+  const providerStates = config?.providerStates ?? [];
+  const activeProvider = providerStates.find((p) => p.id === (config?.ai.primary ?? 'gemini')) ?? providerStates[0];
+  const isGemini = !activeProvider || activeProvider.id === 'gemini';
+  const activeModel = isGemini
+    ? config?.models.brain ?? activeProvider?.model ?? 'gemini-3.8-flash'
+    : activeProvider?.model || activeProvider?.defaultModel || '';
+  const providerModels = activeProvider
+    ? [...new Set([activeProvider.model, activeProvider.defaultModel])].filter(Boolean)
+    : [];
 
   const togglePermission = (key: 'fileAccess' | 'appControl' | 'microphone' | 'camera') => {
     if (!config) return;
@@ -70,7 +81,7 @@ export function RightRail() {
   };
 
   return (
-    <aside className="hidden w-[300px] shrink-0 flex-col gap-3 overflow-y-auto pr-0.5 xl:flex">
+    <aside className="hidden w-[300px] shrink-0 flex-col gap-3 overflow-y-auto pr-0.5 [&>*]:shrink-0 xl:flex">
       {/* Sağlayıcı */}
       <Panel red className="overflow-hidden">
         <div className="flex items-start gap-2.5 px-4 pb-2.5 pt-3.5">
@@ -78,8 +89,10 @@ export function RightRail() {
             <Sparkles size={14} className="text-emerald-300" />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-[13px] font-semibold text-white/90">Google Gemini</p>
-            <p className="truncate text-[10.5px] text-white/35">Bulut · Gemini API · yalnızca Google AI</p>
+            <p className="truncate text-[13px] font-semibold text-white/90">{activeProvider?.label ?? 'Yapay zekâ sağlayıcısı'}</p>
+            <p className="truncate text-[10.5px] text-white/35">
+              Bulut API · {activeProvider?.hasKey ? 'anahtar kayıtlı' : 'anahtar yok'}
+            </p>
           </div>
           <StatusDot tone={config?.hasApiKey ? 'green' : 'red'} pulse={Boolean(config?.hasApiKey)} />
         </div>
@@ -99,14 +112,15 @@ export function RightRail() {
             </button>
           </div>
           <Select
-            value={config?.models.brain ?? 'gemini-3.8-flash'}
+            value={activeModel}
             onChange={(e) => {
-              if (!config) return;
-              void saveConfig({ models: { ...config.models, brain: e.target.value, vision: e.target.value } });
+              if (!config || !activeProvider) return;
+              if (isGemini) void saveConfig({ models: { ...config.models, brain: e.target.value, vision: e.target.value } });
+              else void setProviderModel(activeProvider.id, e.target.value);
             }}
             className="py-1.5 text-[11.5px]"
           >
-            {modelOptions.map((name) => (
+            {(isGemini ? modelOptions : providerModels).map((name) => (
               <option key={name} value={name}>
                 {name}
               </option>
@@ -137,7 +151,7 @@ export function RightRail() {
               </span>
             }
           />
-          <KeyValue label="Model Yüklü" value={<span className="text-falcon-200/90">{config?.models.brain ?? '—'}</span>} mono />
+          <KeyValue label="Model Yüklü" value={<span className="text-falcon-200/90">{activeModel || '—'}</span>} mono />
           <KeyValue
             label="Bellek Kullanımı"
             value={

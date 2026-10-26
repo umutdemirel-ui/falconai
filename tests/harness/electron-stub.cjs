@@ -175,6 +175,42 @@ const systemPreferences = {
 };
 const Menu = { buildFromTemplate: () => ({}), setApplicationMenu: () => {} };
 
+// app:// protokolü — kayıtlı işleyiciler testte elle çağrılır.
+const protocolHandlers = new Map();
+const privilegedSchemes = [];
+const protocol = {
+  registerSchemesAsPrivileged(schemes) {
+    privilegedSchemes.push(...schemes);
+  },
+  handle(scheme, handler) {
+    protocolHandlers.set(scheme, handler);
+  },
+  isProtocolHandled: (scheme) => protocolHandlers.has(scheme),
+};
+
+// net.fetch — dosya sisteminden okur (Electron'daki file:// desteğinin taklidi).
+const { pathToFileURL, fileURLToPath } = require('node:url');
+const net = {
+  async fetch(input) {
+    const filePath = String(input).startsWith('file:') ? fileURLToPath(String(input)) : String(input);
+    try {
+      const data = fs.readFileSync(filePath);
+      const ext = path.extname(filePath).toLowerCase();
+      const types = {
+        '.html': 'text/html; charset=utf-8',
+        '.js': 'text/javascript; charset=utf-8',
+        '.css': 'text/css; charset=utf-8',
+        '.svg': 'image/svg+xml',
+        '.png': 'image/png',
+        '.json': 'application/json',
+      };
+      return new Response(data, { status: 200, headers: { 'content-type': types[ext] || 'application/octet-stream' } });
+    } catch {
+      return new Response('Bulunamadı', { status: 404 });
+    }
+  },
+};
+
 const sessionState = { permissionRequestHandler: null, permissionCheckHandler: null };
 const session = {
   defaultSession: {
@@ -194,6 +230,8 @@ module.exports = {
   Menu,
   Notification,
   session,
+  protocol,
+  net,
   ipcMain,
   safeStorage,
   globalShortcut,
@@ -209,6 +247,9 @@ module.exports = {
     sentEvents,
     ipcHandlers,
     sessionState,
+    protocolHandlers,
+    privilegedSchemes,
+    pathToFileURL,
     setEncryptionAvailable: (v) => (encryptionAvailable = v),
   },
 };

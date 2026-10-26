@@ -8,7 +8,9 @@ import {
   globalShortcut,
   ipcMain,
   nativeImage,
+  net,
   powerMonitor,
+  protocol,
   screen,
   session,
   shell,
@@ -16,8 +18,21 @@ import {
 } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { attachBus, emitConfig, emitToast } from './core/bus';
-import { getApiKey, getConfig, maskedApiKey, publicConfig, resetConfig, setApiKey, updateConfig } from './core/config';
+import {
+  getApiKey,
+  getConfig,
+  maskedApiKey,
+  providerKey,
+  providerStates,
+  publicConfig,
+  resetConfig,
+  setApiKey,
+  setProviderKey,
+  setProviderModel,
+  updateConfig,
+} from './core/config';
 import { log, readAudit, readRecentLogs } from './core/logger';
 import { assetPath, dataDir, desktopDir, documentsDir, downloadsDir, homeDir, paths } from './core/paths';
 import { resolveConfirmation, rejectAllConfirmations } from './core/security';
@@ -75,13 +90,51 @@ import { syncModels } from './services/models';
 import { getTool } from './services/tools';
 import { startScheduler, stopScheduler, runAgendaNow } from './services/scheduler';
 import { listModels, testConnection } from './core/gemini';
-import type { Attachment, Config } from '../shared/types';
+import { listProviderModels, testProvider } from './core/llm';
+import type { Attachment, Config, ProviderId } from '../shared/types';
 
 /* ------------------------------------------------------------------ */
 /* Uygulama kurulumu                                                   */
 /* ------------------------------------------------------------------ */
 
 const isDev = Boolean(process.env.VITE_DEV_SERVER_URL);
+
+/**
+ * Üretimde arayüz `file://` yerine `app://` şemasından yüklenir.
+ * `file://` güvenli bağlam sayılmadığı için Chromium mikrofon erişimini
+ * (getUserMedia) engelleyebiliyor; kayıtlı `app://` şeması secure + standard
+ * olduğundan sesli komutlar güvenilir çalışır.
+ */
+const APP_SCHEME = 'app';
+const APP_HOST = 'falcon';
+const APP_ORIGIN = `${APP_SCHEME}://${APP_HOST}`;
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: APP_SCHEME,
+    privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true },
+  },
+]);
+
+const DIST_ROOT = path.join(__dirname, '..', 'dist');
+
+function registerAppProtocol(): void {
+  protocol.handle(APP_SCHEME, async (request) => {
+    try {
+      const url = new URL(request.url);
+      let pathname = decodeURIComponent(url.pathname);
+      if (!pathname || pathname === '/') pathname = '/index.html';
+      const resolved = path.normalize(path.join(DIST_ROOT, pathname));
+      if (!resolved.startsWith(DIST_ROOT)) {
+        return new Response('Yasak', { status: 403 });
+      }
+      const target = fs.existsSync(resolved) && fs.statSync(resolved).isFile() ? resolved : path.join(DIST_ROOT, 'index.html');
+      return net.fetch(pathToFileURL(target).toString());
+    } catch (err) {
+      log.error('app:// isteği başarısız', err);
+      return new Response('Bulunamadı', { status: 404 });
+    }
+  });
+}
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let quitting = false;
@@ -176,7 +229,7 @@ function createWindow(): void {
   if (isDev) {
     void mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL as string);
   } else {
-    void mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
+    void mainWindow.loadURL(`${APP_ORIGIN}/index.html`);
   }
 
   mainWindow.on('close', (event) => {
@@ -202,6 +255,7 @@ function createWindow(): void {
 
   mainWindow.webContents.on('will-navigate', (event, url) => {
     if (isDev && url.startsWith(process.env.VITE_DEV_SERVER_URL as string)) return;
+    if (url.startsWith(`${APP_ORIGIN}/`)) return;
     event.preventDefault();
     if (/^https?:/i.test(url)) void shell.openExternal(url);
   });
@@ -318,7 +372,7 @@ function applyLoginItem(): void {
 }
 
 async function primeModels(): Promise<void> {
-  if (!getApiKey()) return;
+  if (!providerKey('gemini')) return;
   try {
     const result = await syncModels(false);
     if (result.changed.length) {
@@ -361,6 +415,29 @@ function registerIpc(): void {
     return publicConfig();
   });
   ipcMain.handle('config:masked-key', () => maskedApiKey());
+  ipcMain.handle('config:set-provider-key', (_e, provider: ProviderId, key: string) => {
+    const cfg = setProviderKey(provider, key);
+    emitConfig(cfg);
+    return publicConfig();
+  });
+  ipcMain.handle('config:set-provider-model', (_e, provider: ProviderId, model: string) => {
+    const cfg = setProviderModel(provider, model);
+    emitConfig(cfg);
+    return publicConfig();
+  });
+  ipcMain.handle('config:provider-states', () => providerStates());
+  ipcMain.handle('config:test-provider', async (_e, provider: ProviderId) => {
+    const result = await testProvider(provider);
+    return result;
+  });
+  ipcMain.handle('config:provider-models', async (_e, provider: ProviderId) => {
+    try {
+      return await listProviderModels(provider);
+    } catch (err) {
+      log.warn(`model listesi alınamadı (${provider})`, err);
+      throw err;
+    }
+  });
   ipcMain.handle('config:test', async () => {
     const result = await testConnection();
     if (result.ok) void primeModels();
@@ -622,6 +699,7 @@ if (gotSingleLock) {
   app.on('ready', () => {
     log.info(`Falcon başladı · sürüm ${app.getVersion()} · ${process.platform}`);
     Menu.setApplicationMenu(null);
+    registerAppProtocol();
 
     // Mikrofon/kamera izinleri: yalnızca kendi penceremiz için, yalnızca medya
     session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {

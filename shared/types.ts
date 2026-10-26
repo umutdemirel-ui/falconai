@@ -4,6 +4,51 @@
  */
 
 export type PermissionMode = 'manual' | 'smart' | 'full';
+
+/** Yapay zekâ sağlayıcıları. Gemini zorunlu değildir; herhangi biri yeterlidir. */
+export type ProviderId = 'gemini' | 'openai' | 'anthropic' | 'nvidia' | 'abacus';
+
+export type ProviderKind = 'gemini' | 'openai' | 'anthropic';
+
+/** Ayarlarda saklanan sağlayıcı girdisi (anahtar şifreli). */
+export interface ProviderEntry {
+  /** safeStorage ile şifrelenmiş anahtar (Gemini anahtarı `apiKeyEncrypted` alanında tutulur) */
+  keyEncrypted: string | null;
+  /** Sohbet/araç modeli; boşsa sağlayıcının varsayılanı kullanılır */
+  model: string;
+  /** Gelişmiş: özel API kök adresi (boşsa sağlayıcının resmî adresi) */
+  baseUrl: string;
+}
+
+export interface AiSettings {
+  /** Sohbet ve araç kullanımında birincil sağlayıcı */
+  primary: ProviderId;
+  /** Birincil sağlayıcı çalışmazsa anahtarı olan diğer sağlayıcıya geç */
+  fallback: boolean;
+  /** Seslendirme (TTS) ve yazıya dökme (STT) sağlayıcısı */
+  voiceProvider: 'gemini' | 'openai';
+  openaiSttModel: string;
+  openaiTtsModel: string;
+  openaiVoice: string;
+  providers: Record<Exclude<ProviderId, 'gemini'>, ProviderEntry>;
+}
+
+/** Arayüze gönderilen sağlayıcı durumu (anahtar asla gönderilmez). */
+export interface ProviderState {
+  id: ProviderId;
+  label: string;
+  kind: ProviderKind;
+  hasKey: boolean;
+  masked: string;
+  model: string;
+  defaultModel: string;
+  baseUrl: string;
+  docsUrl: string;
+  keyHint: string;
+  supportsVoice: boolean;
+  supportsVision: boolean;
+  note: string;
+}
 export type Platform = 'win32' | 'darwin' | 'linux';
 
 export interface ModelSettings {
@@ -94,6 +139,9 @@ export interface Config {
   voice: VoiceSettings;
   permissions: PermissionSettings;
   agenda: AgendaSettings;
+  ai: AiSettings;
+  /** Yalnızca arayüz için: publicConfig() doldurur, diske yazılmaz. */
+  providerStates?: ProviderState[];
   createdAt: number;
   updatedAt: number;
 }
@@ -445,6 +493,20 @@ export const DEFAULT_CONFIG: Config = {
     time: '09:00',
     topics: ['Türkiye gündemi', 'Dünya', 'Teknoloji', 'Ekonomi'],
     speak: true,
+  },
+  ai: {
+    primary: 'gemini',
+    fallback: true,
+    voiceProvider: 'gemini',
+    openaiSttModel: 'whisper-1',
+    openaiTtsModel: 'gpt-4o-mini-tts',
+    openaiVoice: 'nova',
+    providers: {
+      openai: { keyEncrypted: null, model: '', baseUrl: '' },
+      anthropic: { keyEncrypted: null, model: '', baseUrl: '' },
+      nvidia: { keyEncrypted: null, model: '', baseUrl: '' },
+      abacus: { keyEncrypted: null, model: '', baseUrl: '' },
+    },
   },
   createdAt: 0,
   updatedAt: 0,

@@ -49,8 +49,23 @@ async function main() {
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const port = getPort();
   const realFetch = global.fetch;
-  global.fetch = (url, init) =>
-    realFetch(String(url).replace('https://generativelanguage.googleapis.com', `http://127.0.0.1:${port}`), init);
+  const VENDOR_PREFIX = {
+    'https://generativelanguage.googleapis.com': '',
+    'https://api.openai.com': '/openai',
+    'https://api.anthropic.com': '/anthropic',
+    'https://integrate.api.nvidia.com': '/nvidia',
+    'https://routellm.abacus.ai': '/abacus',
+  };
+  global.fetch = (url, init) => {
+    let target = String(url);
+    for (const [host, prefix] of Object.entries(VENDOR_PREFIX)) {
+      if (target.startsWith(host)) {
+        target = `http://127.0.0.1:${port}${prefix}` + target.slice(host.length);
+        break;
+      }
+    }
+    return realFetch(target, init);
+  };
 
   fs.rmSync(USER_DATA, { recursive: true, force: true });
   fs.mkdirSync(FAKE_HOME, { recursive: true });
@@ -127,6 +142,103 @@ async function main() {
 
   const transcript = await invoke('voice:transcribe', wav.toString('base64'), 'audio/wav', 'test');
   check('Ses yazıya çevrildi', typeof transcript.text === 'string' && transcript.text.length > 3, transcript.text);
+
+
+  /* --------------------------- Sağlayıcılar -------------------------- */
+  const stateList = await invoke('config:provider-states');
+  check('Beş sağlayıcı listeleniyor', stateList.length === 5 && stateList[0].id === 'gemini', stateList.map((p) => p.id).join(','));
+  check('Başlangıçta yalnızca Gemini bağlı', stateList.filter((p) => p.hasKey).length === 1);
+  check('Sağlayıcı bilgileri maskeli', stateList[0].masked.includes('••') && !stateList[0].masked.includes('TESTKEY'));
+
+  let shortKeyRejected = false;
+  try {
+    await invoke('config:set-provider-key', 'openai', 'kisa');
+  } catch {
+    shortKeyRejected = true;
+  }
+  check('Kısa sağlayıcı anahtarı reddedildi', shortKeyRejected);
+
+  await invoke('config:set-provider-key', 'openai', 'sk-test-openai-1234567890');
+  const withOpenAi = await invoke('config:provider-states');
+  const openAiState = withOpenAi.find((p) => p.id === 'openai');
+  check('OpenAI anahtarı kaydedildi', openAiState?.hasKey === true && openAiState.masked.startsWith('sk-'));
+  check('Ayar dosyası OpenAI anahtarını düz metin tutmuyor', !fs.readFileSync(path.join(USER_DATA, 'falcon-data', 'config.json'), 'utf8').includes('sk-test-openai'));
+
+  await invoke('config:set-provider-model', 'openai', 'gpt-5.4-mini');
+  check(
+    'Sağlayıcı modeli kaydedildi',
+    (await invoke('config:provider-states')).find((p) => p.id === 'openai')?.model === 'gpt-5.4-mini',
+  );
+
+  const oaiModels = await invoke('config:provider-models', 'openai');
+  check('OpenAI modelleri listelendi', oaiModels.includes('gpt-5.6'), oaiModels.join(','));
+  const oaiTest = await invoke('config:test-provider', 'openai');
+  check('OpenAI bağlantı testi geçti', oaiTest.ok === true && /OpenAI/.test(oaiTest.message), oaiTest.message);
+  check('OpenAI modeli kimlik doğrulamasıyla istendi', requests.some((r) => r.vendor === 'openai' && r.headers.authorization === 'Bearer sk-test-openai-1234567890'));
+
+  await invoke('config:update', { ai: { primary: 'openai' } });
+  const oaiChat = await invoke('chat:send', { text: 'Sistem durumunu kontrol et ve özetle' });
+  const oaiMsgs = await invoke('chat:messages', oaiChat.conversationId);
+  check('OpenAI ajanı araç çağırdı', oaiMsgs.some((m) => m.role === 'tool' && m.tool?.status === 'ok'), oaiMsgs.map((m) => m.role).join(','));
+  check('OpenAI akışlı yanıt üretti', (oaiChat.assistantMessage.text ?? '').length > 5, oaiChat.assistantMessage.text);
+  check('OpenAI sohbeti OpenAI adresine gitti', requests.some((r) => r.vendor === 'openai' && r.route === '/chat/completions'));
+
+  await invoke('config:set-provider-key', 'anthropic', 'sk-ant-test-1234567890');
+  const anthropicModels = await invoke('config:provider-models', 'anthropic');
+  check('Anthropic modelleri listelendi', anthropicModels.includes('claude-sonnet-5-5'), anthropicModels.join(','));
+  await invoke('config:update', { ai: { primary: 'anthropic' } });
+  const claudeChat = await invoke('chat:send', { text: 'Sistem durumunu kontrol et ve özetle' });
+  const claudeMsgs = await invoke('chat:messages', claudeChat.conversationId);
+  check('Anthropic ajanı araç çağırdı', claudeMsgs.some((m) => m.role === 'tool' && m.tool?.status === 'ok'), claudeMsgs.map((m) => m.role).join(','));
+  check('Anthropic yanıtı döndü', (claudeChat.assistantMessage.text ?? '').length > 5, claudeChat.assistantMessage.text);
+  check(
+    'Anthropic isteği x-api-key + anthropic-version ile gitti',
+    requests.some(
+      (r) =>
+        r.vendor === 'anthropic' &&
+        r.route === '/messages' &&
+        r.headers['x-api-key'] === 'sk-ant-test-1234567890' &&
+        Boolean(r.headers['anthropic-version']),
+    ),
+  );
+
+  await invoke('config:set-provider-key', 'nvidia', 'nvapi-test-1234567890');
+  await invoke('config:set-provider-key', 'abacus', 'abacus-test-1234567890');
+  const allStates = await invoke('config:provider-states');
+  check('Beş sağlayıcı da bağlanabildi', allStates.every((p) => p.hasKey), allStates.map((p) => `${p.id}:${p.hasKey}`).join(','));
+  const nvidiaModels = await invoke('config:provider-models', 'nvidia');
+  check('NVIDIA modelleri listelendi', nvidiaModels.some((m) => m.startsWith('meta/')), nvidiaModels.join(','));
+  const abacusTest = await invoke('config:test-provider', 'abacus');
+  check('Abacus bağlantı testi geçti', abacusTest.ok === true, abacusTest.message);
+  check('NVIDIA isteği kendi adresine gitti', requests.some((r) => r.vendor === 'nvidia'));
+  check('Abacus isteği kendi adresine gitti', requests.some((r) => r.vendor === 'abacus'));
+
+  await invoke('config:set-provider-key', 'abacus', '');
+  check('Anahtar silinebiliyor', (await invoke('config:provider-states')).find((p) => p.id === 'abacus')?.hasKey === false);
+
+  /* --------------------------- OpenAI sesi --------------------------- */
+  await invoke('config:update', { ai: { voiceProvider: 'openai' } });
+  const oaiSpeech = await invoke('voice:speak', 'Merhaba Umut, OpenAI sesi test ediliyor.');
+  check('OpenAI TTS ses üretti', oaiSpeech.provider === 'openai' && oaiSpeech.audioBase64.length > 100, oaiSpeech.provider);
+  const oaiTranscript = await invoke('voice:transcribe', wav.toString('base64'), 'audio/wav', 'test');
+  check('Whisper sesi yazıya döktü', oaiTranscript.provider === 'openai' && oaiTranscript.text.length > 3, oaiTranscript.text);
+  await invoke('config:update', { ai: { voiceProvider: 'gemini', primary: 'gemini' } });
+  check('Gemini birincil sağlayıcıya dönüldü', (await invoke('config:get')).ai.primary === 'gemini');
+
+  /* --------------------------- app:// protokolü ---------------------- */
+  const privileged = electron.__test.privilegedSchemes.find((s) => s.scheme === 'app');
+  check('app:// ayrıcalıklı ve güvenli şema', Boolean(privileged?.privileges.secure && privileged?.privileges.standard));
+  const appHandler = electron.__test.protocolHandlers.get('app');
+  check('app:// işleyicisi kaydedildi', typeof appHandler === 'function');
+  if (appHandler) {
+    const indexRes = await appHandler(new Request('app://falcon/index.html'));
+    const indexHtml = await indexRes.text();
+    check('app:// index.html sunuyor', indexRes.status === 200 && indexHtml.includes('<div id="root"'), String(indexRes.status));
+    const spaRes = await appHandler(new Request('app://falcon/sohbet/42'));
+    check('app:// bilinmeyen yolu index.html ile karşılıyor', spaRes.status === 200 && (await spaRes.text()).includes('<div id="root"'));
+    const forbidden = await appHandler(new Request('app://falcon/%2e%2e%2f%2e%2e%2fetc%2fpasswd'));
+    check('app:// dizin dışına çıkış 403', forbidden.status === 403, String(forbidden.status));
+  }
 
   /* ------------------------------ Sistem ----------------------------- */
   const info = await invoke('system:info');

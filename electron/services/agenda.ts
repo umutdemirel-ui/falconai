@@ -3,7 +3,7 @@ import { log } from '../core/logger';
 import { uid } from '../core/store';
 import { listDigests, saveDigest } from '../core/db';
 import type { AgendaDigest, AgendaItem } from '../../shared/types';
-import { generate } from '../core/gemini';
+import { generateChat } from '../core/llm';
 
 /**
  * Gündem takibi.
@@ -49,9 +49,10 @@ Kurallar:
 - En önemli gelişmeyi manşet olarak yaz.
 - En fazla 7 madde.`;
 
-  const result = await generate({
+  const result = await generateChat({
     model: cfg.models.search,
     purpose: 'search',
+    requireSearch: true,
     googleSearch: true,
     temperature: 0.3,
     maxOutputTokens: 4096,

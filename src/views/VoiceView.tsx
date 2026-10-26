@@ -4,6 +4,7 @@ import { useStore } from '../lib/store';
 import { voiceEngine } from '../lib/voice';
 import { Button, Field, IconChip, Panel, Segmented, Select, Slider, Toggle } from '../components/ui';
 import { VoiceOrb } from '../components/VoiceOrb';
+import { MicTestPanel } from '../components/MicTestPanel';
 import { cn } from '../lib/utils';
 
 const GEMINI_VOICES = [
@@ -53,7 +54,7 @@ export function VoiceView() {
         </IconChip>
         <div className="flex-1">
           <h2 className="text-[13.5px] font-semibold text-white/90">Sesli Asistan</h2>
-          <p className="text-[10.5px] text-white/35">Konuş, Falcon dinlesin; yanıtları Gemini sesiyle okusun</p>
+          <p className="text-[10.5px] text-white/35">Konuş, Falcon dinlesin; yanıtları doğal sesle okusun</p>
         </div>
         <Button size="sm" variant="ghost" onClick={() => void preview()} disabled={previewing || v.engine === 'off'}>
           <Volume2 size={13} /> {previewing ? 'Konuşuyor…' : 'Sesi dinle'}
@@ -81,7 +82,7 @@ export function VoiceView() {
                   voice.listening
                     ? 'Konuşmanı dinliyorum…'
                     : voice.transcribing
-                      ? 'Gemini yazıya döküyor…'
+                      ? 'Yazıya döküyorum…'
                       : voice.speaking
                         ? 'Sana cevap veriyorum'
                         : 'Konuşmaya hazırım'
@@ -99,6 +100,20 @@ export function VoiceView() {
                   {voice.transcript || 'Henüz bir konuşma yok.'}
                 </p>
               </div>
+
+              {voice.error ? (
+                <div className="w-full rounded-xl border border-falcon-500/30 bg-falcon-500/[0.08] px-3 py-2">
+                  <p className="text-[9.5px] uppercase tracking-wide text-falcon-200/80">Ses hatası</p>
+                  <p className="mt-1 text-[11px] leading-relaxed text-white/75">{voice.error}</p>
+                  <button
+                    type="button"
+                    onClick={() => useStore.getState().setVoice({ error: undefined })}
+                    className="mt-1.5 text-[10px] text-falcon-200/80 underline decoration-dotted hover:text-falcon-100"
+                  >
+                    Kapat
+                  </button>
+                </div>
+              ) : null}
 
               <div className="grid w-full grid-cols-2 gap-2">
                 <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] px-3 py-2">
@@ -156,6 +171,8 @@ export function VoiceView() {
 
         {/* Sağ: ayarlar */}
         <div className="space-y-4">
+          <MicTestPanel />
+
           <Panel className="p-4">
             <div className="mb-3 flex items-center gap-2">
               <Settings2 size={14} className="text-falcon-400" />
@@ -169,7 +186,7 @@ export function VoiceView() {
                   value={v.engine}
                   onChange={(engine) => void saveConfig({ voice: { ...v, engine } })}
                   options={[
-                    { value: 'gemini', label: 'Gemini sesi' },
+                    { value: 'gemini', label: 'AI sesi' },
                     { value: 'system', label: 'Sistem sesi' },
                     { value: 'off', label: 'Kapalı' },
                   ]}
@@ -178,6 +195,21 @@ export function VoiceView() {
 
               {v.engine === 'gemini' ? (
                 <>
+                  <div>
+                    <p className="label mb-1.5">Ses sağlayıcısı</p>
+                    <Select
+                      value={config.ai.voiceProvider}
+                      onChange={(e) => void saveConfig({ ai: { ...config.ai, voiceProvider: e.target.value as 'gemini' | 'openai' } })}
+                    >
+                      <option value="gemini">Google Gemini (TTS + STT)</option>
+                      <option value="openai">OpenAI (gpt-4o-mini-tts + Whisper)</option>
+                    </Select>
+                    <p className="mt-1 text-[10.5px] text-white/25">
+                      {config.ai.voiceProvider === 'openai'
+                        ? 'OpenAI anahtarı gerekir; Türkçe konuşmada Whisper kullanılır.'
+                        : 'Gemini anahtarı gerekir; ses, görsel ve gündem için tek anahtar yeterli.'}
+                    </p>
+                  </div>
                   <div>
                     <p className="label mb-1.5">Gemini sesi</p>
                     <Select value={v.voice} onChange={(e) => void saveConfig({ voice: { ...v, voice: e.target.value } })}>
@@ -197,7 +229,9 @@ export function VoiceView() {
                       placeholder="sıcak, kendinden emin, doğal"
                       className="text-[12px]"
                     />
-                    <p className="mt-1 text-[10.5px] text-white/25">Gemini’ye ton, hız ve duygu talimatı olarak gönderilir.</p>
+                    <p className="mt-1 text-[10.5px] text-white/25">
+                      Gemini’ye ton, hız ve duygu talimatı olarak gönderilir. OpenAI sesinde yönerge ses adıyla birlikte iletilir.
+                    </p>
                   </div>
                 </>
               ) : null}

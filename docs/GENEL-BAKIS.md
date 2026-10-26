@@ -2,7 +2,7 @@
 
 Falcon, bilgisayarında **tam yetkiyle** çalışan Türkçe sesli yapay zekâ ajanıdır.
 Electron tabanlı gerçek bir masaüstü uygulamasıdır; tarayıcıda açılan bir site değildir.
-Tek ihtiyacı bir **Google AI (Gemini) API anahtarı**dır.
+Tek ihtiyacı bir **yapay zekâ API anahtarı**dır: Google Gemini, OpenAI, Anthropic, NVIDIA NIM veya Abacus AI.
 
 Bu sayfa uygulamanın tüm ekranlarını gösterir. Kurulum ve kullanım için [README](../README.md).
 
@@ -29,7 +29,8 @@ kod blokları, konuşma geçmişi.
 ## Sesli asistan
 
 Yüzen ses paneli: canlı dalga formu, mikrofon durumu, sessize alma, konuşmayı kesme.
-Yanıtlar Gemini TTS ile seslendirilir; “Dinliyorum…” göstergesi panel kapalıyken de görünür.
+Yanıtlar Gemini veya OpenAI TTS ile seslendirilir; “Dinliyorum…” göstergesi panel kapalıyken de görünür.
+Sağ üstteki **Mikrofon testi** dört saniyelik kayıt alır, geri dinletir, ses seviyesini gösterir ve yazıya döker.
 
 ![Sesli asistan](screenshots/sesli-asistan.png)
 
@@ -62,6 +63,15 @@ Falcon’a “bu dosyayı özetle” dediğinde analiz burada listelenen dosyala
 
 ---
 
+## Sağlayıcılar — Ayarlar → API ve Modeller
+
+Beş sağlayıcı kartı: anahtar ekleme, maskeleme, bağlantı testi, model listesi ve “birincil yap”.
+Falcon anahtarı olan sağlayıcıyla çalışır; hata olursa sıradaki anahtarlı sağlayıcıya geçer.
+
+![Sağlayıcılar](screenshots/saglayicilar.png)
+
+---
+
 ## Ayarlar
 
 Yedi sekme: **Genel**, **API ve Modeller**, **Ses ve Konuşma**, **İzinler ve Güvenlik**,
@@ -73,7 +83,7 @@ Yedi sekme: **Genel**, **API ve Modeller**, **Ses ve Konuşma**, **İzinler ve G
 
 ## Kurulum (onboarding)
 
-İlk açılışta dört adım: adın → API anahtarı (test ile) → yetki seviyesi → ses motoru ve ses seçimi.
+İlk açılışta dört adım: adın → sağlayıcı seçimi + API anahtarı (test ile) → yetki seviyesi → ses motoru ve ses seçimi.
 
 ![Kurulum](screenshots/kurulum.png)
 
@@ -85,26 +95,25 @@ Yedi sekme: **Genel**, **API ve Modeller**, **Ses ve Konuşma**, **İzinler ve G
 | --- | --- |
 | Masaüstü çatısı | Electron 45 (contextIsolation + sandbox) |
 | Arayüz | React 19, TypeScript 5.9, Vite 8, Tailwind 3.4, Zustand 5 |
-| Yapay zekâ | Google Gemini (`generateContent` akışı, function calling, TTS, STT, Google Arama) |
+| Yapay zekâ | Gemini, OpenAI, Anthropic, NVIDIA NIM, Abacus RouteLLM (`electron/core/llm.ts` yönlendiricisi) |
+| Ses | Gemini TTS/STT veya OpenAI gpt-4o-mini-tts + Whisper |
 | Anahtar saklama | İşletim sistemi kasası (DPAPI / Keychain), diskte `enc:` önekli şifreli |
 | Veri | Yerel JSON deposu + değiştirilemez `audit.jsonl` denetim kaydı |
 | Paketleme | electron-builder → NSIS (.exe), DMG (.dmg), AppImage + .deb |
-| Test | 53 arka uç entegrasyon testi (Electron + Gemini taklit edilerek) |
+| Test | 84 arka uç entegrasyon testi (Electron + beş sağlayıcı taklit edilerek) |
 
 ### İstek akışı
 
 ```
-Mikrofon → WAV → Gemini STT → ajan döngüsü (en fazla 24 araç adımı)
-                                 ├─ Gemini akışı (function calling)
+Mikrofon → WAV → Gemini/OpenAI STT → ajan döngüsü (en fazla 24 araç adımı)
+                                 ├─ birincil sağlayıcıda akış (function calling)
+                                 ├─ model yoksa yedek model → diğer sağlayıcı
                                  ├─ izin kontrolü → onay → araç yürütme → denetim kaydı
                                  └─ gözlem modele geri beslenir
-Yanıt → arayüz (akış) → Gemini TTS → hoparlör
+Yanıt → arayüz (akış) → Gemini/OpenAI TTS → hoparlör
 ```
 
 ### Güvenlik modeli
 
 - Üç izin modu: **tam yetki**, **akıllı**, **her işlemde sor**.
-- Yıkıcı terminal komutları kara listede; sistem klasörlerine yazma reddedilir.
-- Silme işlemleri çöp kutusuna gider.
-- Şifreler modelden gizli; giriş işlemi yerel araçta yapılır.
-- `Ctrl/Cmd + Alt + F` her şeyi anında durdurur.
+- Yıkıcı ter

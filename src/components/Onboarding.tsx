@@ -5,14 +5,27 @@ import { api } from '../lib/api';
 import { useStore } from '../lib/store';
 import { Button, Field, IconChip, Panel, Segmented, Select, Toggle } from './ui';
 import { cn } from '../lib/utils';
+import type { ProviderId } from '../../shared/types';
 
 const STEPS = ['Hoş geldin', 'API anahtarı', 'İzinler', 'Ses'];
+
+/** Kurulumda seçilebilen sağlayıcılar (Gemini varsayılan). */
+const PROVIDER_CHOICES: { id: ProviderId; label: string; hint: string; docs: string; note: string }[] = [
+  { id: 'gemini', label: 'Google Gemini', hint: 'AIza…', docs: 'https://aistudio.google.com/apikey', note: 'Ses, görsel analiz ve gündem için önerilir.' },
+  { id: 'openai', label: 'OpenAI', hint: 'sk-…', docs: 'https://platform.openai.com/api-keys', note: 'Sohbet + Whisper ile ses yazıya dökme.' },
+  { id: 'anthropic', label: 'Anthropic Claude', hint: 'sk-ant-…', docs: 'https://console.anthropic.com/settings/keys', note: 'Uzun belgeler ve kod için güçlü.' },
+  { id: 'nvidia', label: 'NVIDIA NIM', hint: 'nvapi-…', docs: 'https://build.nvidia.com', note: 'Ücretsiz geliştirici kotası.' },
+  { id: 'abacus', label: 'Abacus AI (RouteLLM)', hint: 'Abacus API anahtarı', docs: 'https://abacus.ai/help/route-llm/', note: 'Tek anahtarla 150+ model.' },
+];
 
 export function Onboarding() {
   const config = useStore((s) => s.config);
   const saveConfig = useStore((s) => s.saveConfig);
+  const saveProviderKey = useStore((s) => s.saveProviderKey);
   const pushToast = useStore((s) => s.pushToast);
   const [step, setStep] = useState(0);
+  const [provider, setProvider] = useState<ProviderId>('gemini');
+  const current = PROVIDER_CHOICES.find((p) => p.id === provider) ?? PROVIDER_CHOICES[0];
   const [name, setName] = useState(config?.userName === 'Kullanıcı' ? '' : config?.userName ?? '');
   const [key, setKey] = useState('');
   const [saving, setSaving] = useState(false);
@@ -30,9 +43,8 @@ export function Onboarding() {
     setSaving(true);
     setTested(null);
     try {
-      const next = await api.config.setApiKey(key.trim());
-      useStore.setState({ config: next });
-      const result = await api.config.test();
+      await saveProviderKey(provider, key.trim());
+      const result = await api.config.testProvider(provider);
       setTested({ ok: result.ok, message: result.message });
       if (result.ok) setStep(2);
     } catch (err) {
@@ -64,7 +76,7 @@ export function Onboarding() {
           </h2>
           <p className="mt-2.5 max-w-[400px] text-[13px] leading-relaxed text-white/50">
             Bilgisayarında tam yetkiyle çalışan, seninle konuşan, uygulama açıp kapatan, dosyalarını okuyup yazan ve gündemi
-            senin yerine takip eden kişisel yapay zekâ asistanın. Tek ihtiyacım bir Google AI anahtarı.
+            senin yerine takip eden kişisel yapay zekâ asistanın. Tek ihtiyacım bir yapay zekâ API anahtarı.
           </p>
 
           <div className="mt-6 grid gap-2 sm:grid-cols-2">
@@ -150,26 +162,43 @@ export function Onboarding() {
 
           {step === 1 ? (
             <div className="flex h-full flex-col">
-              <h3 className="text-[15px] font-semibold text-white">Google AI anahtarın</h3>
+              <h3 className="text-[15px] font-semibold text-white">Yapay zekâ anahtarın</h3>
               <p className="mt-1 text-[11.5px] leading-relaxed text-white/40">
-                Falcon yalnızca Gemini API kullanır. Anahtar ücretsiz alınabilir ve yalnızca bu cihazda şifreli saklanır.
+                Falcon Gemini, OpenAI, Anthropic, NVIDIA ve Abacus ile çalışır. Beşinden biri yeterli; anahtar bu cihazda şifreli saklanır.
               </p>
               <div className="mt-4">
-                <label className="label mb-1.5 block">API anahtarı</label>
+                <label className="label mb-1.5 block">Sağlayıcı</label>
+                <Select
+                  value={provider}
+                  onChange={(e) => {
+                    setProvider(e.target.value as ProviderId);
+                    setTested(null);
+                  }}
+                  className="text-[12px]"
+                >
+                  {PROVIDER_CHOICES.map((choice) => (
+                    <option key={choice.id} value={choice.id}>
+                      {choice.label}
+                    </option>
+                  ))}
+                </Select>
+                <p className="mt-1 text-[10.5px] text-white/30">{current.note}</p>
+
+                <label className="label mb-1.5 mt-3 block">API anahtarı</label>
                 <Field
                   autoFocus
                   type="password"
                   value={key}
                   onChange={(e) => setKey(e.target.value)}
-                  placeholder="AIza…"
+                  placeholder={current.hint}
                   className="font-mono text-[12px]"
                 />
                 <button
                   type="button"
                   className="mt-2 flex items-center gap-1 text-[10.5px] text-falcon-300/80 hover:text-falcon-200"
-                  onClick={() => void api.system.openUrl('https://aistudio.google.com/apikey')}
+                  onClick={() => void api.system.openUrl(current.docs)}
                 >
-                  <ExternalLink size={10} /> aistudio.google.com/apikey adresinden anahtar al
+                  <ExternalLink size={10} /> {current.label} anahtarını al
                 </button>
               </div>
 

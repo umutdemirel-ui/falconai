@@ -82,14 +82,8 @@ async function collectSystemInfo(): Promise<SystemInfo> {
   const cpus = os.cpus();
   const total = os.totalmem();
   const free = os.freemem();
+  // Batarya bilgisi Electron powerMonitor'dan gelmez; platforma özel komutlarla okunur.
   let battery: SystemInfo['battery'] = null;
-  try {
-    const { powerMonitor } = await import('electron');
-    battery = null; // Electron powerMonitor batarya detayı vermez; platforma özel okunur
-    void powerMonitor;
-  } catch {
-    /* yoksay */
-  }
 
   if (isWindows()) {
     const r = await ps('Get-CimInstance Win32_Battery | Select-Object -First 1 EstimatedChargeRemaining,BatteryStatus | ConvertTo-Json -Compress', 8000);

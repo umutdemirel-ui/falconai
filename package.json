@@ -1,8 +1,8 @@
 {
   "name": "falconai",
   "productName": "Falcon AI",
-  "version": "1.0.0",
-  "description": "Falcon — bilgisayarında tam yetkiyle çalışan, sesli Türkçe yapay zekâ ajanı (Electron + Gemini)",
+  "version": "1.1.0",
+  "description": "Falcon — bilgisayarında tam yetkiyle çalışan, sesli Türkçe yapay zekâ ajanı (Electron; Gemini, OpenAI, Anthropic, NVIDIA, Abacus)",
   "author": {
     "name": "Umut Demirel",
     "email": "umutdemirel@users.noreply.github.com"
@@ -24,7 +24,7 @@
     "dist:mac": "npm run build && electron-builder --mac",
     "dist:linux": "npm run build && electron-builder --linux",
     "postinstall": "electron-builder install-app-deps",
-    "test:backend": "npm run build:electron && node tests/run.cjs",
+    "test:backend": "npm run build && node tests/run.cjs",
     "test:ui": "npm run build:renderer && node tests/ui-screenshot.mjs",
     "preview": "npm run build:renderer && vite preview --port 4173 --host 0.0.0.0"
   },

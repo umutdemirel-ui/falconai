@@ -1,8 +1,9 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
-// Falcon renderer build. `base: './'` is required because the packaged app is
-// loaded from the file:// protocol inside Electron.
+// Falcon renderer build. `base: './'` keeps asset yolları göreli; paketlenmiş
+// uygulama dosyaları app://falcon/index.html üzerinden yükler.
+// allowedHosts: uzaktaki önizleme (e2b.app) ve yerel ağ erişimi için.
 export default defineConfig({
   plugins: [react()],
   base: './',
@@ -10,10 +11,12 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     host: '0.0.0.0',
+    allowedHosts: ['.e2b.app', 'localhost'],
   },
   preview: {
     port: 4173,
     host: '0.0.0.0',
+    allowedHosts: ['.e2b.app', 'localhost'],
   },
   build: {
     outDir: 'dist',

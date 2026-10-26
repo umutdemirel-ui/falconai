@@ -289,7 +289,7 @@ function requireKey(): string {
   const key = getApiKey();
   if (!key) {
     throw new GeminiError('API anahtarı yok', 401, 'NO_API_KEY', undefined, false, false,
-      'Başlamak için Ayarlar → API ve Modeller bölümünden Google AI Studio API anahtarınızı girin. Falcon yalnızca Google AI (Gemini) kullanır.');
+      'Başlamak için Ayarlar → API ve Modeller bölümünden bir API anahtarı ekleyin (Google Gemini, OpenAI, Anthropic, NVIDIA veya Abacus).');
   }
   return key;
 }

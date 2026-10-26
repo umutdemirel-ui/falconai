@@ -116,6 +116,9 @@ interface Store {
   saveConfig: (patch: Partial<Config>) => Promise<void>;
   setApiKey: (key: string) => Promise<void>;
   testConnection: () => Promise<void>;
+  saveProviderKey: (provider: string, key: string) => Promise<void>;
+  setPrimaryProvider: (provider: string) => Promise<void>;
+  setProviderModel: (provider: string, model: string) => Promise<void>;
   setVoice: (patch: Partial<VoiceRuntime>) => void;
   setVoicePanelOpen: (open: boolean) => void;
 
@@ -403,6 +406,20 @@ export const useStore = create<Store>((set, get) => ({
   },
 
   dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
+
+  saveProviderKey: async (provider, key) => {
+    const config = await api.config.setProviderKey(provider, key);
+    set({ config });
+  },
+
+  setPrimaryProvider: async (provider) => {
+    await get().saveConfig({ ai: { ...get().config!.ai, primary: provider as Config['ai']['primary'] } });
+  },
+
+  setProviderModel: async (provider, model) => {
+    const config = await api.config.setProviderModel(provider, model);
+    set({ config });
+  },
 
   saveConfig: async (patch) => {
     const config = await api.config.update(patch);

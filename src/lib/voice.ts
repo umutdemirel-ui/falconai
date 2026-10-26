@@ -8,11 +8,36 @@ import { useStore } from './store';
  * - Kesme (barge-in): Falcon konuşurken mikrofona basılırsa ses durdurulur
  */
 
-interface RecorderResult {
+export interface RecorderResult {
   base64: string;
   mime: string;
   durationMs: number;
   hasSpeech: boolean;
+  /** Ham kayıttaki en yüksek genlik (0-1) — mikrofon testi için */
+  peak: number;
+  /** Kaydedilen örnek sayısı (0 ise mikrofon hiç ses vermedi) */
+  frames: number;
+}
+
+function micErrorMessage(err: unknown): string {
+  const name = (err as { name?: string } | null)?.name ?? '';
+  switch (name) {
+    case 'NotAllowedError':
+    case 'PermissionDeniedError':
+      return 'Mikrofon izni verilmedi. Windows: Ayarlar → Gizlilik → Mikrofon → “Masaüstü uygulamaları”, macOS: Sistem Ayarları → Gizlilik → Mikrofon.';
+    case 'NotFoundError':
+    case 'DevicesNotFoundError':
+      return 'Mikrofon bulunamadı. Bir mikrofon bağlı olduğundan emin ol.';
+    case 'NotReadableError':
+    case 'TrackStartError':
+      return 'Mikrofon başka bir uygulama tarafından kullanılıyor olabilir. Diğer uygulamaları kapatıp tekrar dene.';
+    case 'OverconstrainedError':
+      return 'Seçili mikrofon cihazı kullanılamıyor. Ayarlar → Ses ve Konuşma bölümünden başka bir cihaz seç.';
+    case 'SecurityError':
+      return 'Mikrofon erişimi güvenlik nedeniyle engellendi. Uygulamayı yeniden başlatmayı dene.';
+    default:
+      return err instanceof Error ? err.message : String(err);
+  }
 }
 
 class WavRecorder {
@@ -26,8 +51,24 @@ class WavRecorder {
   private level = 0;
   private running = false;
 
+  /** Kullanıcı hareketi sırasında (await'lerden önce) çağrılır. */
+  prepare(): void {
+    if (this.ctx) return;
+    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    try {
+      this.ctx = new AudioCtx();
+      // Tarayıcı otomatik oynatma politikası: kullanıcı hareketi varken başlat.
+      void this.ctx.resume().catch(() => undefined);
+    } catch {
+      this.ctx = null;
+    }
+  }
+
   async start(deviceId?: string): Promise<void> {
     if (this.running) return;
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw new DOMException('Bu ortamda mikrofon API’si kullanılamıyor.', 'SecurityError');
+    }
     const constraints: MediaStreamConstraints = {
       audio: {
         echoCancellation: true,
@@ -39,7 +80,8 @@ class WavRecorder {
     };
     this.stream = await navigator.mediaDevices.getUserMedia(constraints);
     const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    this.ctx = new AudioCtx();
+    if (!this.ctx || this.ctx.state === 'closed') this.ctx = new AudioCtx();
+    if (this.ctx.state === 'suspended') await this.ctx.resume().catch(() => undefined);
     this.sampleRate = this.ctx.sampleRate;
     this.source = this.ctx.createMediaStreamSource(this.stream);
     this.processor = this.ctx.createScriptProcessor(4096, 1, 1);
@@ -58,6 +100,7 @@ class WavRecorder {
     this.source.connect(this.processor);
     this.processor.connect(mute);
     mute.connect(this.ctx.destination);
+    if (this.ctx.state === 'suspended') await this.ctx.resume().catch(() => undefined);
     this.startedAt = Date.now();
     this.running = true;
   }
@@ -101,14 +144,21 @@ class WavRecorder {
     const wav = encodeWav(downsampled, 16000);
 
     let sum = 0;
-    for (let i = 0; i < merged.length; i += 8) sum += merged[i] * merged[i];
+    let peak = 0;
+    for (let i = 0; i < merged.length; i += 8) {
+      sum += merged[i] * merged[i];
+      const abs = Math.abs(merged[i]);
+      if (abs > peak) peak = abs;
+    }
     const rms = Math.sqrt(sum / Math.max(1, merged.length / 8));
 
     return {
       base64: bytesToBase64(wav),
       mime: 'audio/wav',
       durationMs: Math.round((total / sampleRate) * 1000),
-      hasSpeech: rms > 0.01 && total > sampleRate * 0.25,
+      hasSpeech: (rms > 0.008 || peak > 0.05) && total > sampleRate * 0.2,
+      peak,
+      frames: total,
     };
   }
 
@@ -202,6 +252,8 @@ class VoiceEngine {
   private stopRequested = false;
   private autoStopTimer: number | null = null;
   private transcriptHandler: TranscriptHandler | null = null;
+  /** Son mikrofon testi kaydı (geri dinlemek için) */
+  lastTestRecording: RecorderResult | null = null;
 
   onTranscript(cb: TranscriptHandler): void {
     this.transcriptHandler = cb;
@@ -238,9 +290,18 @@ class VoiceEngine {
     if (this.recorder.isRunning()) return;
     if (store.voice.speaking) this.stopSpeaking();
 
+    // AudioContext kullanıcı hareketiyle (await'lerden önce) hazırlanmalı;
+    // aksi halde Chromium otomatik oynatma politikası nedeniyle sessiz kalır.
+    this.recorder.prepare();
+
     const granted = await this.requestPermission();
     if (!granted) {
-      store.pushToast({ kind: 'error', title: 'Mikrofon izni yok', body: 'Sistem ayarlarından Falcon’a mikrofon erişimi verin.' });
+      store.pushToast({
+        kind: 'error',
+        title: 'Mikrofon izni yok',
+        body: 'İşletim sistemi Falcon’a mikrofon erişimi vermedi. Windows: Ayarlar → Gizlilik → Mikrofon; macOS: Sistem Ayarları → Gizlilik → Mikrofon.',
+      });
+      store.setVoicePanelOpen(false);
       return;
     }
     try {
@@ -250,12 +311,27 @@ class VoiceEngine {
       store.setVoicePanelOpen(true);
       this.watchSilence();
     } catch (err) {
-      store.setVoice({
-        listening: false,
-        error: err instanceof Error ? err.message : 'Mikrofon açılamadı',
-      });
-      store.pushToast({ kind: 'error', title: 'Mikrofon açılamadı', body: err instanceof Error ? err.message : String(err) });
+      const message = micErrorMessage(err);
+      store.setVoice({ listening: false, error: message });
+      store.pushToast({ kind: 'error', title: 'Mikrofon açılamadı', body: message });
+      store.setVoicePanelOpen(false);
     }
+  }
+
+  /**
+   * Mikrofon testi: VAD olmadan belirtilen süre kaydeder.
+   * Arayüz kaydı geri dinletebilir ve yazıya dökebilir.
+   */
+  async testMicrophone(ms = 4000): Promise<RecorderResult> {
+    const store = useStore.getState();
+    this.recorder.prepare();
+    await this.recorder.start(store.config?.voice.micDeviceId || undefined);
+    store.setVoice({ listening: true, transcribing: false, error: undefined, level: 0 });
+    await new Promise((resolve) => setTimeout(resolve, Math.max(1000, Math.min(ms, 15000))));
+    store.setVoice({ listening: false });
+    const result = await this.recorder.stop();
+    this.lastTestRecording = result;
+    return result;
   }
 
   private watchSilence(): void {
@@ -311,7 +387,22 @@ class VoiceEngine {
     }
     if (!result || !result.hasSpeech || result.durationMs < 350) {
       store.setVoice({ transcribing: false, transcript: '' });
-      if (store.voice.mode === 'continuous' && store.config?.voice.continuousListening) {
+      if (!result || result.durationMs < 350) {
+        store.pushToast({ kind: 'info', title: 'Çok kısa kayıt', body: 'Mikrofona bas, konuş ve bitirince tekrar bas.' });
+      } else if (result.frames === 0) {
+        store.pushToast({
+          kind: 'error',
+          title: 'Mikrofon ses vermedi',
+          body: 'Kayıt cihazından veri gelmedi. Ayarlar → Ses ve Konuşma bölümünden mikrofonu test edin.',
+        });
+      } else {
+        store.pushToast({
+          kind: 'info',
+          title: 'Ses algılanmadı',
+          body: 'Konuşma duyulmadı. Mikrofona biraz daha yakın konuşmayı dene.',
+        });
+      }
+      if (store.config?.voice.continuousListening) {
         setTimeout(() => void this.startListening('continuous'), 600);
       } else {
         store.setVoicePanelOpen(false);
@@ -345,7 +436,11 @@ class VoiceEngine {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       store.setVoice({ transcribing: false, error: message });
-      store.pushToast({ kind: 'error', title: 'Ses yazıya çevrilemedi', body: message });
+      store.pushToast({
+        kind: 'error',
+        title: 'Ses yazıya çevrilemedi',
+        body: `${message} — Ayarlar → API ve Modeller bölümünden ses sağlayıcısını kontrol et.`,
+      });
       store.setVoicePanelOpen(false);
     }
   }
