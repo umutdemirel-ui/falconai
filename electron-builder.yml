@@ -1,0 +1,59 @@
+appId: com.falconai.app
+productName: Falcon AI
+copyright: Copyright © 2026 Umut Demirel
+directories:
+  buildResources: build
+  output: release
+files:
+  - dist/**/*
+  - dist-electron/**/*
+  - build/icon.png
+  - package.json
+  - '!**/*.map'
+asar: true
+asarUnpack:
+  - resources/**
+extraResources:
+  - from: assets/falcon-mark.png
+    to: falcon-mark.png
+  - from: assets/falcon-logo.png
+    to: falcon-logo.png
+win:
+  icon: build/icon.png
+  target:
+    - target: nsis
+      arch: [x64]
+  artifactName: Falcon-AI-${version}-Kurulum.${ext}
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Falcon AI
+  installerLanguages: [tr_TR, en_US]
+  language: '1055'
+mac:
+  icon: build/icon.png
+  category: public.app-category.productivity
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+  extendInfo:
+    NSMicrophoneUsageDescription: Falcon sesli komutlarınızı dinlemek için mikrofona erişmek istiyor.
+    NSCameraUsageDescription: Falcon kamera üzerinden görüntü almak istiyor.
+    NSCameraUsageDescription-tr: Falcon kamera üzerinden görüntü almak istiyor.
+    NSAppleEventsUsageDescription: Falcon uygulama açmak/kapatmak ve sistem komutları için Apple Events kullanıyor.
+    NSDesktopFolderUsageDescription: Falcon masaüstü dosyalarınıza erişmek istiyor.
+    NSDocumentsFolderUsageDescription: Falcon belgelerinize erişmek istiyor.
+    NSDownloadsFolderUsageDescription: Falcon indirilenler klasörünüze erişmek istiyor.
+  hardenedRuntime: false
+linux:
+  icon: build/icon.png
+  category: Utility
+  target:
+    - AppImage
+    - deb
+  maintainer: Umut Demirel
+  synopsis: Sesli Türkçe yapay zekâ ajanı
+publish: null
