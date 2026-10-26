@@ -1,0 +1,345 @@
+[
+  {
+    "name": "open_app",
+    "label": "Uygulama aç",
+    "risk": "safe",
+    "capability": "appControl",
+    "icon": "app-window"
+  },
+  {
+    "name": "close_app",
+    "label": "Uygulama kapat",
+    "risk": "moderate",
+    "capability": "appControl",
+    "icon": "x-circle"
+  },
+  {
+    "name": "list_apps",
+    "label": "Kurulu uygulamaları listele",
+    "risk": "safe",
+    "capability": "appControl",
+    "icon": "grid"
+  },
+  {
+    "name": "list_running_apps",
+    "label": "Çalışan uygulamalar",
+    "risk": "safe",
+    "capability": "appControl",
+    "icon": "activity"
+  },
+  {
+    "name": "activate_window",
+    "label": "Pencereyi öne getir",
+    "risk": "safe",
+    "capability": "appControl",
+    "icon": "mouse-pointer-click"
+  },
+  {
+    "name": "type_text",
+    "label": "Klavyeden yaz",
+    "risk": "moderate",
+    "capability": "appControl",
+    "icon": "keyboard"
+  },
+  {
+    "name": "press_keys",
+    "label": "Tuşlara bas",
+    "risk": "moderate",
+    "capability": "appControl",
+    "icon": "command"
+  },
+  {
+    "name": "login_app",
+    "label": "Uygulamaya giriş yap",
+    "risk": "dangerous",
+    "capability": "appControl",
+    "icon": "log-in"
+  },
+  {
+    "name": "save_credential",
+    "label": "Hesap bilgisini kasaya kaydet",
+    "risk": "moderate",
+    "capability": "appControl",
+    "icon": "key-round"
+  },
+  {
+    "name": "list_credentials",
+    "label": "Kayıtlı hesaplar",
+    "risk": "safe",
+    "capability": "appControl",
+    "icon": "shield"
+  },
+  {
+    "name": "delete_credential",
+    "label": "Hesabı sil",
+    "risk": "dangerous",
+    "capability": "appControl",
+    "icon": "trash-2"
+  },
+  {
+    "name": "read_file",
+    "label": "Dosya oku",
+    "risk": "safe",
+    "capability": "fileAccess",
+    "icon": "file-text"
+  },
+  {
+    "name": "write_file",
+    "label": "Dosya yaz",
+    "risk": "moderate",
+    "capability": "fileAccess",
+    "icon": "file-plus"
+  },
+  {
+    "name": "append_file",
+    "label": "Dosyaya ekle",
+    "risk": "moderate",
+    "capability": "fileAccess",
+    "icon": "file-diff"
+  },
+  {
+    "name": "list_directory",
+    "label": "Klasör listele",
+    "risk": "safe",
+    "capability": "fileAccess",
+    "icon": "folder-open"
+  },
+  {
+    "name": "search_files",
+    "label": "Dosya ara",
+    "risk": "safe",
+    "capability": "fileAccess",
+    "icon": "search"
+  },
+  {
+    "name": "copy_path",
+    "label": "Kopyala / taşı",
+    "risk": "moderate",
+    "capability": "fileAccess",
+    "icon": "copy"
+  },
+  {
+    "name": "make_directory",
+    "label": "Klasör oluştur",
+    "risk": "safe",
+    "capability": "fileAccess",
+    "icon": "folder-plus"
+  },
+  {
+    "name": "delete_path",
+    "label": "Sil",
+    "risk": "dangerous",
+    "capability": "fileAccess",
+    "icon": "trash-2"
+  },
+  {
+    "name": "open_path",
+    "label": "Dosya/klasör aç",
+    "risk": "safe",
+    "capability": "fileAccess",
+    "icon": "folder"
+  },
+  {
+    "name": "analyze_document",
+    "label": "Belge analizi",
+    "risk": "safe",
+    "capability": "fileAccess",
+    "icon": "file-search"
+  },
+  {
+    "name": "translate_file",
+    "label": "Dosya çevirisi",
+    "risk": "safe",
+    "capability": "fileAccess",
+    "icon": "languages"
+  },
+  {
+    "name": "save_note",
+    "label": "Not kaydet",
+    "risk": "safe",
+    "capability": "fileAccess",
+    "icon": "notebook-pen"
+  },
+  {
+    "name": "system_info",
+    "label": "Sistem bilgisi",
+    "risk": "safe",
+    "capability": "core",
+    "icon": "monitor"
+  },
+  {
+    "name": "system_power",
+    "label": "Güç işlemleri",
+    "risk": "dangerous",
+    "capability": "power",
+    "icon": "power"
+  },
+  {
+    "name": "set_volume",
+    "label": "Ses seviyesi",
+    "risk": "safe",
+    "capability": "core",
+    "icon": "volume-2"
+  },
+  {
+    "name": "set_muted",
+    "label": "Sesi kapat/aç",
+    "risk": "safe",
+    "capability": "core",
+    "icon": "volume-x"
+  },
+  {
+    "name": "media_control",
+    "label": "Medya kontrolü",
+    "risk": "safe",
+    "capability": "core",
+    "icon": "play"
+  },
+  {
+    "name": "set_brightness",
+    "label": "Parlaklık",
+    "risk": "safe",
+    "capability": "core",
+    "icon": "sun"
+  },
+  {
+    "name": "toggle_dark_mode",
+    "label": "Karanlık mod",
+    "risk": "safe",
+    "capability": "core",
+    "icon": "moon"
+  },
+  {
+    "name": "empty_trash",
+    "label": "Çöp kutusunu boşalt",
+    "risk": "dangerous",
+    "capability": "core",
+    "icon": "trash"
+  },
+  {
+    "name": "capture_screen",
+    "label": "Ekran görüntüsü",
+    "risk": "moderate",
+    "capability": "core",
+    "icon": "monitor-dot"
+  },
+  {
+    "name": "read_clipboard",
+    "label": "Panoyu oku",
+    "risk": "safe",
+    "capability": "clipboard",
+    "icon": "clipboard"
+  },
+  {
+    "name": "write_clipboard",
+    "label": "Panoya yaz",
+    "risk": "safe",
+    "capability": "clipboard",
+    "icon": "clipboard-copy"
+  },
+  {
+    "name": "open_url",
+    "label": "Web sitesi aç",
+    "risk": "safe",
+    "capability": "network",
+    "icon": "globe"
+  },
+  {
+    "name": "notify_user",
+    "label": "Bildirim gönder",
+    "risk": "safe",
+    "capability": "core",
+    "icon": "bell"
+  },
+  {
+    "name": "run_command",
+    "label": "Terminal komutu",
+    "risk": "dangerous",
+    "capability": "terminal",
+    "icon": "terminal"
+  },
+  {
+    "name": "web_search",
+    "label": "Web araması",
+    "risk": "safe",
+    "capability": "network",
+    "icon": "search"
+  },
+  {
+    "name": "news_digest",
+    "label": "Gündem özeti",
+    "risk": "safe",
+    "capability": "network",
+    "icon": "newspaper"
+  },
+  {
+    "name": "remember",
+    "label": "Hatırla (hafızaya kaydet)",
+    "risk": "safe",
+    "capability": "core",
+    "icon": "brain"
+  },
+  {
+    "name": "recall",
+    "label": "Hafızadan hatırla",
+    "risk": "safe",
+    "capability": "core",
+    "icon": "archive"
+  },
+  {
+    "name": "add_task",
+    "label": "Görev ekle",
+    "risk": "safe",
+    "capability": "core",
+    "icon": "list-todo"
+  },
+  {
+    "name": "list_tasks",
+    "label": "Görevleri listele",
+    "risk": "safe",
+    "capability": "core",
+    "icon": "list-checks"
+  },
+  {
+    "name": "complete_task",
+    "label": "Görevi tamamla",
+    "risk": "safe",
+    "capability": "core",
+    "icon": "check-check"
+  },
+  {
+    "name": "add_reminder",
+    "label": "Hatırlatıcı kur",
+    "risk": "safe",
+    "capability": "core",
+    "icon": "alarm-clock"
+  },
+  {
+    "name": "list_reminders",
+    "label": "Hatırlatıcıları listele",
+    "risk": "safe",
+    "capability": "core",
+    "icon": "bell-ring"
+  },
+  {
+    "name": "create_project",
+    "label": "Proje oluştur",
+    "risk": "safe",
+    "capability": "core",
+    "icon": "folder-kanban"
+  },
+  {
+    "name": "list_projects",
+    "label": "Projeleri listele",
+    "risk": "safe",
+    "capability": "core",
+    "icon": "layout-grid"
+  },
+  {
+    "name": "delegate_task",
+    "label": "Uzman ajana devret",
+    "risk": "safe",
+    "capability": "core",
+    "icon": "users"
+  }
+]

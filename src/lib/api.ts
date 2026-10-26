@@ -21,6 +21,7 @@ import {
   type TaskItem,
   type ToolConfirmation,
 } from '../../shared/types';
+import TOOL_CATALOG from '../../shared/tool-catalog.json';
 
 /**
  * Arayüz ↔ ana süreç köprüsü.
@@ -422,14 +423,7 @@ function createDemoApi(): FalconApi {
         { id: 'a2', at: now - 590000, tool: 'web_search', args: { query: 'gündem' }, outcome: 'ok', summary: '4 kaynak bulundu.', agent: 'Araştırmacı', durationMs: 2400 },
       ],
       delegations: async () => [],
-      tools: async () => [
-        { name: 'open_app', label: 'Uygulama aç', description: 'Uygulama veya site açar', risk: 'safe', icon: 'app-window', capability: 'appControl' },
-        { name: 'close_app', label: 'Uygulama kapat', description: 'Çalışan uygulamayı kapatır', risk: 'moderate', icon: 'x-circle', capability: 'appControl' },
-        { name: 'system_power', label: 'Güç işlemleri', description: 'Kapat / yeniden başlat / kilitle', risk: 'dangerous', icon: 'power', capability: 'power' },
-        { name: 'read_file', label: 'Dosya oku', description: 'PDF, DOCX, metin okur', risk: 'safe', icon: 'file-text', capability: 'fileAccess' },
-        { name: 'run_command', label: 'Terminal', description: 'Komut çalıştırır', risk: 'dangerous', icon: 'terminal', capability: 'terminal' },
-        { name: 'web_search', label: 'Web araması', description: 'Güncel bilgi arar', risk: 'safe', icon: 'search', capability: 'network' },
-      ],
+      tools: async () => TOOL_CATALOG.map((tool) => ({ ...tool, description: tool.label })),
       agents: async () => [
         { name: 'Araştırmacı', emoji: '🔎', tagline: 'Web araması, kaynaklı bilgi, gündem', tools: ['web_search'] },
         { name: 'Kodcu', emoji: '⌨️', tagline: 'Kod yazma, hata ayıklama', tools: ['write_file'] },

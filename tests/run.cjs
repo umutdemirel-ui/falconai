@@ -260,6 +260,18 @@ async function main() {
     `${sysA?.uptimeSec} / ${sysB?.uptimeSec}`,
   );
 
+  /* --------------------------- Araç kataloğu ------------------------- */
+  const catalog = require(path.join(ROOT, 'shared', 'tool-catalog.json'));
+  const liveTools = await invoke('data:tools');
+  const keyOf = (t) => `${t.name}|${t.label}|${t.risk}|${t.capability}|${t.icon}`;
+  const liveKeys = liveTools.map(keyOf).sort();
+  const catalogKeys = catalog.map(keyOf).sort();
+  check(
+    'Paylaşılan araç kataloğu gerçek araçlarla eşleşiyor',
+    JSON.stringify(liveKeys) === JSON.stringify(catalogKeys),
+    `${liveTools.length} araç / ${catalog.length} katalog`,
+  );
+
   /* ----------------------------- Özet ------------------------------- */
   const eventTypes = new Set(electron.__test.sentEvents.map((e) => e.payload?.type).filter(Boolean));
   check('Arayüze olaylar iletildi', eventTypes.has('message') && eventTypes.has('delta'), [...eventTypes].join(','));
